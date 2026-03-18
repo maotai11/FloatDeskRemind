@@ -1,0 +1,46 @@
+"""
+Color tokens for the light theme.
+"""
+
+# Background
+BG_PRIMARY = '#FFFFFF'
+BG_SECONDARY = '#F5F5F5'
+BG_TERTIARY = '#EBEBEB'
+BG_FLOAT = '#FAFAFA'
+
+# Text
+TEXT_PRIMARY = '#1A1A1A'
+TEXT_SECONDARY = '#5A5A5A'
+TEXT_DISABLED = '#AAAAAA'
+TEXT_OVERDUE = '#D32F2F'
+
+# Accent (blue)
+ACCENT = '#1976D2'
+ACCENT_HOVER = '#1565C0'
+ACCENT_LIGHT = '#E3F2FD'
+
+# Priority
+PRIORITY_HIGH = '#D32F2F'
+PRIORITY_MEDIUM = '#F57C00'
+PRIORITY_LOW = '#388E3C'
+PRIORITY_NONE = '#9E9E9E'
+
+# Borders
+BORDER_LIGHT = '#E0E0E0'
+BORDER_NORMAL = '#BDBDBD'
+
+# Status
+STATUS_DONE = '#4CAF50'
+STATUS_PENDING = '#1976D2'
+
+# Float window
+FLOAT_BG_ALPHA = 0.95
+FLOAT_HEADER_BG = '#1976D2'
+FLOAT_HEADER_TEXT = '#FFFFFF'
+
+# Font sizes
+FONT_SIZE_MAP = {
+    'small': 11,
+    'medium': 13,
+    'large': 15,
+}

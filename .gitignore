@@ -1,0 +1,46 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+.eggs/
+dist/
+build/
+*.spec.bak
+
+# PyInstaller output
+dist/
+build/
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+*.log
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# AI tooling
+.claude/
+.autonomous/
+.aider*
+.cursor/
+.continue/
+
+# App data (dev artifacts)
+src/__pycache__/
+tests/__pycache__/
