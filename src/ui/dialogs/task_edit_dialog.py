@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, QDate, QTime
 
 from src.data.models import Task
+from src.ui.utils import set_combo_by_data
 
 
 class TaskEditDialog(QDialog):
@@ -166,13 +167,16 @@ class TaskEditDialog(QDialog):
         dlg = TimePickerDialog(hour=h, minute=m, is_pm=pm, parent=self)
         if dlg.exec():
             self._time_str = dlg.get_time_str()
-            self._time_btn.setText(f'  {self._time_str}')
-            self._time_btn.setStyleSheet(
-                'background-color: #EEF2FF; color: #4F46E5; '
-                'border: 1.5px solid #4F46E5; border-radius: 6px; '
-                'padding: 7px 12px; font-weight: 600;'
-            )
-            self._clear_time_btn.show()
+            self._apply_time_btn_selected()
+
+    def _apply_time_btn_selected(self) -> None:
+        self._time_btn.setText(self._time_str)
+        self._time_btn.setStyleSheet(
+            'background-color: #EEF2FF; color: #4F46E5; '
+            'border: 1.5px solid #4F46E5; border-radius: 6px; '
+            'padding: 7px 12px; font-weight: 600;'
+        )
+        self._clear_time_btn.show()
 
     def _clear_time(self) -> None:
         self._time_str = None
@@ -183,29 +187,17 @@ class TaskEditDialog(QDialog):
     def _load_task(self, task: Task) -> None:
         self._title.setText(task.title)
         self._desc.setPlainText(task.description or '')
-        for i in range(self._priority.count()):
-            if self._priority.itemData(i) == task.priority:
-                self._priority.setCurrentIndex(i)
-                break
+        set_combo_by_data(self._priority, task.priority)
         if task.due_date:
             self._due_date.setDate(QDate.fromString(task.due_date, 'yyyy-MM-dd'))
         if task.due_time:
             self._time_str = task.due_time[:5]
-            self._time_btn.setText(f'  {self._time_str}')
-            self._time_btn.setStyleSheet(
-                'background-color: #EEF2FF; color: #4F46E5; '
-                'border: 1.5px solid #4F46E5; border-radius: 6px; '
-                'padding: 7px 12px; font-weight: 600;'
-            )
-            self._clear_time_btn.show()
+            self._apply_time_btn_selected()
         if hasattr(self, '_auto_complete'):
             self._auto_complete.setChecked(task.auto_complete_with_children)
         if hasattr(self, '_recurring_check') and task.is_recurring:
             self._recurring_check.setChecked(True)
-            for i in range(self._recurrence_rule.count()):
-                if self._recurrence_rule.itemData(i) == task.recurrence_rule:
-                    self._recurrence_rule.setCurrentIndex(i)
-                    break
+            set_combo_by_data(self._recurrence_rule, task.recurrence_rule)
 
     def _on_accept(self) -> None:
         title = self._title.text().strip()

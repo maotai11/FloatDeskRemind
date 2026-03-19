@@ -13,6 +13,7 @@ from PySide6.QtCore import Signal, Qt, QDate, QTime
 from PySide6.QtGui import QFont
 
 from src.data.models import Task
+from src.ui.utils import set_combo_by_data
 
 if TYPE_CHECKING:
     pass
@@ -141,8 +142,8 @@ class RightPanel(QWidget):
         self._header.setText('選擇任務以編輯')
         self._title.clear()
         self._desc.clear()
-        self._status.setCurrentText('pending')
-        self._priority.setCurrentText('none')
+        set_combo_by_data(self._status, 'pending')
+        set_combo_by_data(self._priority, 'none')
         self._due_date.setDate(QDate.currentDate())
         self._save_btn.setEnabled(False)
         self._add_child_btn.hide()
@@ -152,14 +153,8 @@ class RightPanel(QWidget):
         self._header.setText(f'編輯：{task.title[:20]}')
         self._title.setText(task.title)
         self._desc.setPlainText(task.description or '')
-        for i in range(self._status.count()):
-            if self._status.itemData(i) == task.status:
-                self._status.setCurrentIndex(i)
-                break
-        for i in range(self._priority.count()):
-            if self._priority.itemData(i) == task.priority:
-                self._priority.setCurrentIndex(i)
-                break
+        set_combo_by_data(self._status, task.status)
+        set_combo_by_data(self._priority, task.priority)
 
         if task.due_date:
             d = QDate.fromString(task.due_date, 'yyyy-MM-dd')

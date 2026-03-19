@@ -26,6 +26,11 @@ TASK_ID_ROLE = Qt.ItemDataRole.UserRole
 _PRIORITY_LABELS: Dict[str, str] = {'high': '高', 'medium': '中', 'low': '低', 'none': ''}
 _STATUS_LABELS: Dict[str, str] = {'pending': '待辦', 'done': '完成', 'archived': '歸檔'}
 
+_COLOR_DONE     = QColor('#AAAAAA')
+_COLOR_OVERDUE  = QColor(TEXT_OVERDUE)
+_COLOR_PRIORITY_HIGH   = QColor(PRIORITY_HIGH)
+_COLOR_PRIORITY_MEDIUM = QColor(PRIORITY_MEDIUM)
+
 
 class CenterPanel(QWidget):
     task_selected = Signal(object)   # Task or None
@@ -166,18 +171,18 @@ class CenterPanel(QWidget):
 
         if task.status == 'done':
             for col in range(4):
-                item.setForeground(col, QColor('#AAAAAA'))
+                item.setForeground(col, _COLOR_DONE)
             font = item.font(0)
             font.setStrikeOut(True)
             item.setFont(0, font)
         elif task.due_date and task.due_date < today_str:
-            item.setForeground(0, QColor(TEXT_OVERDUE))
-            item.setForeground(2, QColor(TEXT_OVERDUE))
+            item.setForeground(0, _COLOR_OVERDUE)
+            item.setForeground(2, _COLOR_OVERDUE)
 
         if task.priority == 'high':
-            item.setForeground(1, QColor(PRIORITY_HIGH))
+            item.setForeground(1, _COLOR_PRIORITY_HIGH)
         elif task.priority == 'medium':
-            item.setForeground(1, QColor(PRIORITY_MEDIUM))
+            item.setForeground(1, _COLOR_PRIORITY_MEDIUM)
 
         return item
 

@@ -5,23 +5,31 @@ Click on the clock ring to pick, or use +/- buttons.
 """
 from __future__ import annotations
 import math
-from typing import Optional
 
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QWidget, QDialogButtonBox
 )
-from PySide6.QtCore import Qt, QPoint, QRectF, Signal
+from PySide6.QtCore import Qt, QRectF, Signal
 from PySide6.QtGui import (
-    QPainter, QColor, QPen, QBrush, QFont, QFontMetrics
+    QPainter, QColor, QPen, QBrush, QFont
 )
 
 
 CLOCK_SIZE = 220          # px — clock face square
 RADIUS_FACE = 100         # outer circle
 RADIUS_NUM = 78           # where numbers are drawn
-RADIUS_HAND = 72          # hand length
-RADIUS_HIT = 26           # click detection radius per number
+
+# Hoisted fonts — created once, reused every paintEvent
+_FONT_NORMAL = QFont()
+_FONT_NORMAL.setPointSize(10)
+_FONT_BOLD = QFont()
+_FONT_BOLD.setPointSize(10)
+_FONT_BOLD.setBold(True)
+
+# Tab/button active/inactive styles
+_STYLE_ACTIVE   = 'background:#4F46E5; color:white; border:none; border-radius:6px; font-weight:600;'
+_STYLE_INACTIVE = 'background:#EEF2FF; color:#4F46E5; border:none; border-radius:6px;'
 
 
 def _angle(index: int, total: int) -> float:
@@ -49,6 +57,10 @@ class ClockFace(QWidget):
         self.setCursor(Qt.CursorShape.PointingHandCursor)
 
     # ── Public API ──────────────────────────────────────────────────────────
+    @property
+    def phase(self) -> str:
+        return self._phase
+
     def set_phase(self, phase: str) -> None:
         self._phase = phase
         self.update()
@@ -142,10 +154,7 @@ class ClockFace(QWidget):
         else:
             p.setPen(QPen(QColor('#1E293B')))
 
-        font = QFont()
-        font.setPointSize(10)
-        font.setBold(selected)
-        p.setFont(font)
+        p.setFont(_FONT_BOLD if selected else _FONT_NORMAL)
 
         rect = QRectF(x - 16, y - 14, 32, 28)
         p.drawText(rect, Qt.AlignmentFlag.AlignCenter, text)
@@ -230,8 +239,8 @@ class TimePickerDialog(QDialog):
             btn.setFixedHeight(30)
             btn.setFixedWidth(56)
         self._hour_tab.setChecked(True)
-        self._hour_tab.clicked.connect(self._go_hour_phase)
-        self._min_tab.clicked.connect(self._go_min_phase)
+        self._hour_tab.clicked.connect(lambda: self._set_phase(ClockFace.PHASE_HOUR))
+        self._min_tab.clicked.connect(lambda: self._set_phase(ClockFace.PHASE_MIN))
         pr.addStretch()
         pr.addWidget(self._hour_tab)
         pr.addWidget(self._min_tab)
@@ -280,39 +289,26 @@ class TimePickerDialog(QDialog):
     def _update_display(self) -> None:
         m = f'{self._minute:02d}'
         suffix = 'PM' if self._is_pm else 'AM'
-        # Highlight the active selection (hour or minute)
-        if hasattr(self, '_clock') and self._clock._phase == ClockFace.PHASE_HOUR:
+        if self._clock.phase == ClockFace.PHASE_HOUR:
             text = f'<span style="color:#4F46E5">{self._hour:02d}</span>:{m} {suffix}'
         else:
             text = f'{self._hour:02d}:<span style="color:#4F46E5">{m}</span> {suffix}'
         self._display.setText(text)
 
     def _update_tab_styles(self) -> None:
-        active   = 'background:#4F46E5; color:white; border:none; border-radius:6px; font-weight:600;'
-        inactive = 'background:#EEF2FF; color:#4F46E5; border:none; border-radius:6px;'
-        if hasattr(self, '_clock'):
-            if self._clock._phase == ClockFace.PHASE_HOUR:
-                self._hour_tab.setStyleSheet(active)
-                self._min_tab.setStyleSheet(inactive)
-            else:
-                self._hour_tab.setStyleSheet(inactive)
-                self._min_tab.setStyleSheet(active)
-        am_s = active if not self._is_pm else inactive
-        pm_s = active if self._is_pm else inactive
-        self._am_btn.setStyleSheet(am_s)
-        self._pm_btn.setStyleSheet(pm_s)
+        if self._clock.phase == ClockFace.PHASE_HOUR:
+            self._hour_tab.setStyleSheet(_STYLE_ACTIVE)
+            self._min_tab.setStyleSheet(_STYLE_INACTIVE)
+        else:
+            self._hour_tab.setStyleSheet(_STYLE_INACTIVE)
+            self._min_tab.setStyleSheet(_STYLE_ACTIVE)
+        self._am_btn.setStyleSheet(_STYLE_INACTIVE if self._is_pm else _STYLE_ACTIVE)
+        self._pm_btn.setStyleSheet(_STYLE_ACTIVE if self._is_pm else _STYLE_INACTIVE)
 
-    def _go_hour_phase(self) -> None:
-        self._clock.set_phase(ClockFace.PHASE_HOUR)
-        self._hour_tab.setChecked(True)
-        self._min_tab.setChecked(False)
-        self._update_tab_styles()
-        self._update_display()
-
-    def _go_min_phase(self) -> None:
-        self._clock.set_phase(ClockFace.PHASE_MIN)
-        self._min_tab.setChecked(True)
-        self._hour_tab.setChecked(False)
+    def _set_phase(self, phase: str) -> None:
+        self._clock.set_phase(phase)
+        self._hour_tab.setChecked(phase == ClockFace.PHASE_HOUR)
+        self._min_tab.setChecked(phase == ClockFace.PHASE_MIN)
         self._update_tab_styles()
         self._update_display()
 
@@ -324,10 +320,10 @@ class TimePickerDialog(QDialog):
         self._update_display()
 
     def _on_clock_value(self, val: int) -> None:
-        if self._clock._phase == ClockFace.PHASE_HOUR:
+        if self._clock.phase == ClockFace.PHASE_HOUR:
             self._hour = val
             # Auto-advance to minute selection
-            self._go_min_phase()
+            self._set_phase(ClockFace.PHASE_MIN)
         else:
             self._minute = val
         self._update_display()
