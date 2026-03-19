@@ -18,6 +18,7 @@ if TYPE_CHECKING:
 class TrayIcon(QSystemTrayIcon):
     show_float_requested = Signal()
     show_console_requested = Signal()
+    show_settings_requested = Signal()
     quit_requested = Signal()
 
     def __init__(self, parent: QObject = None):
@@ -46,6 +47,10 @@ class TrayIcon(QSystemTrayIcon):
         action_console = QAction('開啟主控台', self)
         action_console.triggered.connect(self.show_console_requested)
         menu.addAction(action_console)
+
+        action_settings = QAction('設定', self)
+        action_settings.triggered.connect(self.show_settings_requested)
+        menu.addAction(action_settings)
 
         menu.addSeparator()
 

@@ -53,7 +53,8 @@ class TaskEditDialog(QDialog):
         form.addRow('描述', self._desc)
 
         self._priority = QComboBox()
-        self._priority.addItems(['none', 'low', 'medium', 'high'])
+        for val, lbl in (('none', '無'), ('low', '低'), ('medium', '中'), ('high', '高')):
+            self._priority.addItem(lbl, val)
         form.addRow('優先', self._priority)
 
         self._due_date = QDateEdit()
@@ -90,7 +91,10 @@ class TaskEditDialog(QDialog):
     def _load_task(self, task: Task) -> None:
         self._title.setText(task.title)
         self._desc.setPlainText(task.description or '')
-        self._priority.setCurrentText(task.priority)
+        for i in range(self._priority.count()):
+            if self._priority.itemData(i) == task.priority:
+                self._priority.setCurrentIndex(i)
+                break
         if task.due_date:
             self._due_date.setDate(QDate.fromString(task.due_date, 'yyyy-MM-dd'))
         if task.due_time:
@@ -111,7 +115,7 @@ class TaskEditDialog(QDialog):
 
         task.title = title
         task.description = self._desc.toPlainText().strip()
-        task.priority = self._priority.currentText()
+        task.priority = self._priority.currentData()
         task.auto_complete_with_children = self._auto_complete.isChecked()
 
         d = self._due_date.date()

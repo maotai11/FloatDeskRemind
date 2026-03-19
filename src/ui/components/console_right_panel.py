@@ -69,12 +69,14 @@ class RightPanel(QWidget):
 
         # Status
         self._status = QComboBox()
-        self._status.addItems(['pending', 'done', 'archived'])
+        for val, lbl in (('pending', '待辦'), ('done', '完成'), ('archived', '歸檔')):
+            self._status.addItem(lbl, val)
         form.addRow('狀態', self._status)
 
         # Priority
         self._priority = QComboBox()
-        self._priority.addItems(['none', 'low', 'medium', 'high'])
+        for val, lbl in (('none', '無'), ('low', '低'), ('medium', '中'), ('high', '高')):
+            self._priority.addItem(lbl, val)
         form.addRow('優先', self._priority)
 
         # Due date
@@ -150,8 +152,14 @@ class RightPanel(QWidget):
         self._header.setText(f'編輯：{task.title[:20]}')
         self._title.setText(task.title)
         self._desc.setPlainText(task.description or '')
-        self._status.setCurrentText(task.status)
-        self._priority.setCurrentText(task.priority)
+        for i in range(self._status.count()):
+            if self._status.itemData(i) == task.status:
+                self._status.setCurrentIndex(i)
+                break
+        for i in range(self._priority.count()):
+            if self._priority.itemData(i) == task.priority:
+                self._priority.setCurrentIndex(i)
+                break
 
         if task.due_date:
             d = QDate.fromString(task.due_date, 'yyyy-MM-dd')
@@ -186,8 +194,8 @@ class RightPanel(QWidget):
 
         self._task.title = title
         self._task.description = self._desc.toPlainText().strip()
-        self._task.status = self._status.currentText()
-        self._task.priority = self._priority.currentText()
+        self._task.status = self._status.currentData()
+        self._task.priority = self._priority.currentData()
         self._task.auto_complete_with_children = self._auto_complete.isChecked()
 
         d = self._due_date.date()

@@ -61,6 +61,7 @@ class AppController(QObject):
         self._tray = TrayIcon()
         self._tray.show_float_requested.connect(self._show_float)
         self._tray.show_console_requested.connect(self._show_console)
+        self._tray.show_settings_requested.connect(self._show_settings)
         self._tray.quit_requested.connect(self._quit)
         self._tray.show()
 
@@ -95,6 +96,9 @@ class AppController(QObject):
             self._console_window.show()
             self._console_window.raise_()
             self._console_window.activateWindow()
+            # Always refresh on show: start() skips invisible console
+            tasks = self._task_service.get_all_active()
+            self._console_window.refresh(tasks)
 
     def _quit(self) -> None:
         self._save_config()
@@ -194,6 +198,22 @@ class AppController(QObject):
         self._config.float_pos_y = y
         self._config.float_width = w
         self._config.float_height = h
+
+    # ------------------------------------------------------------------
+    # Settings
+    # ------------------------------------------------------------------
+    def _show_settings(self) -> None:
+        from src.ui.dialogs.settings_dialog import SettingsDialog
+        from src.core.autostart import set_autostart
+        dlg = SettingsDialog(self._config, parent=None)
+        if dlg.exec():
+            self._config.auto_start = dlg.autostart
+            self._config.float_opacity = dlg.float_opacity
+            set_autostart(dlg.autostart)
+            if self._float_window:
+                self._float_window.set_opacity(dlg.float_opacity)
+                self._float_window.update()
+            self._save_config()
 
     # ------------------------------------------------------------------
     # Config persistence
