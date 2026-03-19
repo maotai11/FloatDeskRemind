@@ -45,22 +45,47 @@ class CenterPanel(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
-        # Toolbar
-        toolbar = QWidget()
-        toolbar.setFixedHeight(44)
-        toolbar.setStyleSheet('background-color: #F5F5F5; border-bottom: 1px solid #E0E0E0;')
-        tbar_layout = QHBoxLayout(toolbar)
-        tbar_layout.setContentsMargins(8, 4, 8, 4)
+        # ── Top bar: prominent add button ─────────────────────────────────
+        topbar = QWidget()
+        topbar.setFixedHeight(56)
+        topbar.setStyleSheet(
+            'background-color: #FFFFFF; border-bottom: 1px solid #E2E8F0;'
+        )
+        tb_layout = QHBoxLayout(topbar)
+        tb_layout.setContentsMargins(12, 8, 12, 8)
+        tb_layout.setSpacing(8)
 
-        add_btn = QPushButton('+ 新增')
-        add_btn.setFixedWidth(80)
+        # Large, unmissable add button
+        add_btn = QPushButton('＋  新增任務')
+        add_btn.setFixedHeight(38)
+        add_btn.setMinimumWidth(140)
+        add_btn.setStyleSheet(
+            'QPushButton {'
+            '  background-color: #4F46E5;'
+            '  color: #FFFFFF;'
+            '  border: none;'
+            '  border-radius: 8px;'
+            '  padding: 0 20px;'
+            '  font-size: 14px;'
+            '  font-weight: 700;'
+            '  letter-spacing: 0.5px;'
+            '}'
+            'QPushButton:hover { background-color: #3730A3; }'
+            'QPushButton:pressed { background-color: #312E81; }'
+        )
+        add_btn.setToolTip('新增任務  (Ctrl+N)')
         add_btn.clicked.connect(self.add_requested)
-        tbar_layout.addWidget(add_btn)
-        tbar_layout.addStretch()
+        tb_layout.addWidget(add_btn)
+        tb_layout.addStretch()
 
-        layout.addWidget(toolbar)
+        # Shortcut hint
+        hint = QLabel('Ctrl+N')
+        hint.setStyleSheet('color: #94A3B8; font-size: 11px;')
+        tb_layout.addWidget(hint)
 
-        # Tree
+        layout.addWidget(topbar)
+
+        # ── Task tree ──────────────────────────────────────────────────────
         self._tree = QTreeWidget()
         self._tree.setColumnCount(4)
         self._tree.setHeaderLabels(['標題', '優先', '期限', '狀態'])

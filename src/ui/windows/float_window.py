@@ -1,17 +1,14 @@
 """
 FloatWindow: always-on-top frameless floating window.
-- Draggable by header
-- Transparent background via QPainter (Windows 11 compatible)
-- Qt.WA_TranslucentBackground + paintEvent
-- Position and size persisted to config
+Indigo header, rounded corners, draggable, transparent background.
 """
 from __future__ import annotations
-from typing import List, Dict, TYPE_CHECKING
+from typing import List, Dict
 
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QSizePolicy
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton
 )
-from PySide6.QtCore import Signal, Qt, QPoint
+from PySide6.QtCore import Signal, Qt, QPoint, QRectF
 from PySide6.QtGui import QPainter, QColor, QPen, QBrush, QCursor
 
 from src.data.models import Task
@@ -19,10 +16,8 @@ from src.core.utils import next_n_days
 from src.ui.components.task_list_widget import TaskListWidget
 from src.core.config import AppConfig
 
-if TYPE_CHECKING:
-    pass
-
-HEADER_HEIGHT = 36
+HEADER_HEIGHT = 42
+CORNER_RADIUS = 12
 
 
 class FloatWindow(QWidget):
@@ -31,7 +26,7 @@ class FloatWindow(QWidget):
     task_delete_requested = Signal(str)
     open_console_requested = Signal()
     closed = Signal()
-    geometry_changed = Signal(int, int, int, int)  # x, y, w, h
+    geometry_changed = Signal(int, int, int, int)
 
     def __init__(self, config: AppConfig, parent=None):
         super().__init__(parent)
@@ -50,48 +45,52 @@ class FloatWindow(QWidget):
         )
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, False)
-        self.setMinimumSize(240, 300)
+        self.setMinimumSize(260, 320)
 
     def _build_ui(self) -> None:
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
         outer.setSpacing(0)
 
-        # Header (drag handle)
+        # Header
         self._header = QWidget()
         self._header.setFixedHeight(HEADER_HEIGHT)
         self._header.setObjectName('FloatHeader')
         self._header.setStyleSheet(
-            'background-color: #1976D2; border-radius: 8px 8px 0 0;'
+            f'background-color: #4F46E5; border-radius: {CORNER_RADIUS}px {CORNER_RADIUS}px 0 0;'
         )
         self._header.setCursor(QCursor(Qt.CursorShape.SizeAllCursor))
-        header_layout = QHBoxLayout(self._header)
-        header_layout.setContentsMargins(10, 0, 6, 0)
 
-        title = QLabel('FloatDesk Remind')
-        title.setStyleSheet('color: white; font-weight: bold; font-size: 13px;')
-        header_layout.addWidget(title)
-        header_layout.addStretch()
+        hl = QHBoxLayout(self._header)
+        hl.setContentsMargins(14, 0, 8, 0)
+        hl.setSpacing(4)
 
-        console_btn = QPushButton('≡')
-        console_btn.setFixedSize(24, 24)
-        console_btn.setToolTip('開啟主控台')
-        console_btn.setStyleSheet(
-            'QPushButton { background: transparent; color: white; border: none; font-size: 16px; }'
-            'QPushButton:hover { background: rgba(255,255,255,0.2); border-radius: 4px; }'
+        icon_lbl = QLabel('◆')
+        icon_lbl.setStyleSheet('color: rgba(255,255,255,0.6); font-size: 9px;')
+        hl.addWidget(icon_lbl)
+
+        title = QLabel('FloatDesk')
+        title.setStyleSheet(
+            'color: white; font-weight: 700; font-size: 13px; letter-spacing: 0.5px;'
         )
+        hl.addWidget(title)
+        hl.addStretch()
+
+        self._count_badge = QLabel('')
+        self._count_badge.setStyleSheet(
+            'background: rgba(255,255,255,0.22); color: white; '
+            'border-radius: 9px; padding: 1px 7px; font-size: 11px; font-weight: 600;'
+        )
+        self._count_badge.hide()
+        hl.addWidget(self._count_badge)
+
+        console_btn = self._mk_header_btn('≡', '開啟主控台')
         console_btn.clicked.connect(self.open_console_requested)
-        header_layout.addWidget(console_btn)
+        hl.addWidget(console_btn)
 
-        hide_btn = QPushButton('−')
-        hide_btn.setFixedSize(24, 24)
-        hide_btn.setToolTip('隱藏浮動視窗')
-        hide_btn.setStyleSheet(
-            'QPushButton { background: transparent; color: white; border: none; font-size: 18px; }'
-            'QPushButton:hover { background: rgba(255,255,255,0.2); border-radius: 4px; }'
-        )
+        hide_btn = self._mk_header_btn('−', '最小化')
         hide_btn.clicked.connect(self.hide)
-        header_layout.addWidget(hide_btn)
+        hl.addWidget(hide_btn)
 
         outer.addWidget(self._header)
 
@@ -101,31 +100,45 @@ class FloatWindow(QWidget):
         self._task_list.task_edit_requested.connect(self.task_edit_requested)
         self._task_list.task_delete_requested.connect(self.task_delete_requested)
         self._task_list.setObjectName('FloatBody')
-
-        # Body background via stylesheet (will also be painted in paintEvent)
         outer.addWidget(self._task_list)
 
-        # Bottom resize grip
+        # Bottom grip
         grip = QWidget()
-        grip.setFixedHeight(6)
-        grip.setStyleSheet('background-color: #E0E0E0; border-radius: 0 0 8px 8px;')
+        grip.setFixedHeight(5)
+        grip.setStyleSheet(
+            f'background-color: #E2E8F0; border-radius: 0 0 {CORNER_RADIUS}px {CORNER_RADIUS}px;'
+        )
         outer.addWidget(grip)
 
-    def paintEvent(self, event) -> None:
-        """Paint rounded semi-transparent background."""
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+    @staticmethod
+    def _mk_header_btn(text: str, tip: str) -> QPushButton:
+        btn = QPushButton(text)
+        btn.setFixedSize(28, 28)
+        btn.setToolTip(tip)
+        btn.setStyleSheet(
+            'QPushButton { background: transparent; color: rgba(255,255,255,0.85); '
+            'border: none; font-size: 16px; border-radius: 6px; }'
+            'QPushButton:hover { background: rgba(255,255,255,0.2); color: white; }'
+        )
+        return btn
 
+    def paintEvent(self, event) -> None:
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
         alpha = int(self._opacity * 255)
-        color = QColor(250, 250, 250, alpha)
-        painter.setBrush(QBrush(color))
-        painter.setPen(QPen(QColor(200, 200, 200, 180), 1))
-        painter.drawRoundedRect(self.rect().adjusted(0, 0, -1, -1), 8, 8)
+        p.setBrush(QBrush(QColor(253, 252, 255, alpha)))
+        p.setPen(QPen(QColor(226, 232, 240, 200), 1))
+        p.drawRoundedRect(
+            QRectF(self.rect().adjusted(0, 0, -1, -1)),
+            CORNER_RADIUS, CORNER_RADIUS
+        )
 
     def mousePressEvent(self, event) -> None:
         if event.button() == Qt.MouseButton.LeftButton:
             if event.position().y() <= HEADER_HEIGHT:
-                self._drag_pos = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
+                self._drag_pos = (
+                    event.globalPosition().toPoint() - self.frameGeometry().topLeft()
+                )
 
     def mouseMoveEvent(self, event) -> None:
         if self._drag_pos and event.buttons() & Qt.MouseButton.LeftButton:
@@ -147,7 +160,6 @@ class FloatWindow(QWidget):
         w = self._config.float_width
         h = self._config.float_height
         self.resize(w, h)
-
         if self._config.float_pos_x >= 0 and self._config.float_pos_y >= 0:
             self.move(self._config.float_pos_x, self._config.float_pos_y)
         else:
@@ -163,6 +175,12 @@ class FloatWindow(QWidget):
         for task in tasks:
             if task.due_date in tasks_by_date:
                 tasks_by_date[task.due_date].append(task)
+        total = sum(len(v) for v in tasks_by_date.values())
+        if total > 0:
+            self._count_badge.setText(str(total))
+            self._count_badge.show()
+        else:
+            self._count_badge.hide()
         self._task_list.refresh(tasks_by_date)
 
     def set_opacity(self, opacity: float) -> None:

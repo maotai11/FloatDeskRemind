@@ -1,9 +1,9 @@
 """
-TaskItemWidget: a single task row in the float window.
-Shows checkbox, title, right-click context menu.
+TaskItemWidget: card-style task row for the float window.
+Left-side priority color bar + checkbox + title + time badge.
+Right-click context menu for edit/delete.
 """
 from __future__ import annotations
-from typing import TYPE_CHECKING, Callable
 
 from PySide6.QtWidgets import (
     QWidget, QHBoxLayout, QCheckBox, QLabel, QSizePolicy, QMenu
@@ -12,15 +12,22 @@ from PySide6.QtCore import Signal, Qt
 from PySide6.QtGui import QAction
 
 from src.data.models import Task
-from src.ui.styles.theme import TEXT_OVERDUE, TEXT_SECONDARY
+from src.ui.styles.theme import (
+    PRIORITY_HIGH, PRIORITY_MEDIUM, PRIORITY_LOW, PRIORITY_NONE,
+    TEXT_OVERDUE, TEXT_SECONDARY
+)
 
-if TYPE_CHECKING:
-    pass
+_PRIORITY_COLOR = {
+    'high':   PRIORITY_HIGH,
+    'medium': PRIORITY_MEDIUM,
+    'low':    PRIORITY_LOW,
+    'none':   'transparent',
+}
 
 
 class TaskItemWidget(QWidget):
-    completed = Signal(str)       # task_id
-    edit_requested = Signal(str)  # task_id
+    completed      = Signal(str)  # task_id
+    edit_requested = Signal(str)
     delete_requested = Signal(str)
 
     def __init__(self, task: Task, reference_date_str: str = '', parent=None):
@@ -28,34 +35,70 @@ class TaskItemWidget(QWidget):
         self._task = task
         self._ref_date = reference_date_str
         self._build_ui()
+        self.setFixedHeight(40)
 
     def _build_ui(self) -> None:
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(4, 2, 4, 2)
-        layout.setSpacing(6)
+        self.setStyleSheet(
+            'TaskItemWidget {'
+            '  background: white;'
+            '  border-radius: 6px;'
+            '  margin: 2px 0;'
+            '}'
+            'TaskItemWidget:hover { background: #F8FAFC; }'
+        )
 
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 8, 0)
+        layout.setSpacing(0)
+
+        # Priority color bar (3px left stripe)
+        bar = QWidget()
+        bar.setFixedWidth(4)
+        bar.setFixedHeight(28)
+        color = _PRIORITY_COLOR.get(self._task.priority, 'transparent')
+        bar.setStyleSheet(
+            f'background-color: {color}; border-radius: 2px; margin: 2px 6px 2px 4px;'
+        )
+        layout.addWidget(bar)
+
+        # Checkbox
         self._check = QCheckBox()
         self._check.setChecked(self._task.status == 'done')
+        self._check.setFixedSize(20, 20)
         self._check.toggled.connect(self._on_check)
         layout.addWidget(self._check)
+        layout.addSpacing(6)
+
+        # Title
+        is_overdue = (
+            self._task.due_date and self._ref_date
+            and self._task.due_date < self._ref_date
+            and self._task.status != 'done'
+        )
+        is_done = self._task.status == 'done'
 
         self._label = QLabel(self._task.title)
         self._label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         self._label.setWordWrap(False)
 
-        # Overdue styling
-        if self._task.due_date and self._ref_date and self._task.due_date < self._ref_date:
-            self._label.setStyleSheet(f'color: {TEXT_OVERDUE}; font-weight: bold;')
-
-        if self._task.status == 'done':
-            self._label.setStyleSheet('color: #AAAAAA; text-decoration: line-through;')
+        if is_done:
+            self._label.setStyleSheet('color: #CBD5E1; text-decoration: line-through; font-size: 13px;')
+        elif is_overdue:
+            self._label.setStyleSheet(f'color: {TEXT_OVERDUE}; font-weight: 600; font-size: 13px;')
+        else:
+            self._label.setStyleSheet('color: #1E293B; font-size: 13px;')
 
         layout.addWidget(self._label)
 
+        # Time badge
         if self._task.due_time:
-            time_lbl = QLabel(self._task.due_time[:5])
-            time_lbl.setStyleSheet(f'color: {TEXT_SECONDARY}; font-size: 11px;')
-            layout.addWidget(time_lbl)
+            time_badge = QLabel(self._task.due_time[:5])
+            time_badge.setStyleSheet(
+                'color: #64748B; font-size: 11px; '
+                'background: #F1F5F9; border-radius: 4px; '
+                'padding: 1px 5px; margin-left: 4px;'
+            )
+            layout.addWidget(time_badge)
 
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.customContextMenuRequested.connect(self._show_context_menu)
@@ -66,13 +109,13 @@ class TaskItemWidget(QWidget):
 
     def _show_context_menu(self, pos) -> None:
         menu = QMenu(self)
-        edit_action = QAction('編輯', self)
-        edit_action.triggered.connect(lambda: self.edit_requested.emit(self._task.id))
-        menu.addAction(edit_action)
+        edit_a = QAction('編輯', self)
+        edit_a.triggered.connect(lambda: self.edit_requested.emit(self._task.id))
+        menu.addAction(edit_a)
 
-        delete_action = QAction('刪除', self)
-        delete_action.triggered.connect(lambda: self.delete_requested.emit(self._task.id))
-        menu.addAction(delete_action)
+        del_a = QAction('刪除', self)
+        del_a.triggered.connect(lambda: self.delete_requested.emit(self._task.id))
+        menu.addAction(del_a)
 
         menu.exec(self.mapToGlobal(pos))
 

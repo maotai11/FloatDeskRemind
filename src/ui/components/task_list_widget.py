@@ -6,7 +6,7 @@ from datetime import date
 from typing import List, Dict
 
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QLabel, QScrollArea, QFrame, QSizePolicy
+    QWidget, QVBoxLayout, QLabel, QScrollArea, QFrame
 )
 from PySide6.QtCore import Signal, Qt
 
@@ -14,7 +14,6 @@ from src.data.models import Task
 from src.services.sort_service import sort_tasks
 from src.core.utils import next_n_days
 from src.ui.components.task_item_widget import TaskItemWidget
-
 
 DAY_LABELS = ['今日', '明日', '後日']
 
@@ -38,10 +37,12 @@ class TaskListWidget(QWidget):
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.Shape.NoFrame)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setStyleSheet('background: transparent;')
 
         self._content = QWidget()
+        self._content.setStyleSheet('background: transparent;')
         self._content_layout = QVBoxLayout(self._content)
-        self._content_layout.setContentsMargins(4, 4, 4, 4)
+        self._content_layout.setContentsMargins(8, 8, 8, 8)
         self._content_layout.setSpacing(0)
         self._content_layout.addStretch()
 
@@ -49,8 +50,6 @@ class TaskListWidget(QWidget):
         layout.addWidget(scroll)
 
     def refresh(self, tasks_by_date: Dict[str, List[Task]]) -> None:
-        """Rebuild the list from a dict of {date_str: [tasks]}."""
-        # Clear existing
         while self._content_layout.count() > 0:
             item = self._content_layout.takeAt(0)
             if item.widget():
@@ -58,27 +57,33 @@ class TaskListWidget(QWidget):
         self._items.clear()
 
         dates = next_n_days(3)
+        today_str = date.today().isoformat()
 
         for i, d in enumerate(dates):
             tasks = tasks_by_date.get(d, [])
             sorted_tasks = sort_tasks(tasks)
+            is_today = (d == today_str)
+            day_lbl = DAY_LABELS[i]
 
-            header = QLabel(f'  {DAY_LABELS[i]}  {d}')
-            header.setProperty('class', 'section-header')
+            # Section header
+            header = QLabel(f'{day_lbl}  {d}')
             header.setStyleSheet(
-                'background-color: #E3F2FD; color: #1976D2; '
-                'font-weight: bold; font-size: 12px; '
-                'padding: 4px 8px; border-radius: 3px; margin: 2px 0;'
+                f'color: {"#4F46E5" if is_today else "#64748B"};'
+                f'font-weight: {"700" if is_today else "500"};'
+                'font-size: 11px; padding: 10px 4px 4px 4px; background: transparent;'
             )
             self._content_layout.addWidget(header)
 
             if not sorted_tasks:
-                empty = QLabel('  無任務')
-                empty.setStyleSheet('color: #AAAAAA; font-size: 12px; padding: 4px 12px;')
+                empty = QLabel('  無待辦事項')
+                empty.setStyleSheet(
+                    'color: #CBD5E1; font-size: 12px; '
+                    'padding: 4px 8px 10px 8px; background: transparent;'
+                )
                 self._content_layout.addWidget(empty)
             else:
                 for task in sorted_tasks:
-                    item = TaskItemWidget(task, reference_date_str=today.isoformat())
+                    item = TaskItemWidget(task, reference_date_str=today_str)
                     item.completed.connect(self.task_completed)
                     item.edit_requested.connect(self.task_edit_requested)
                     item.delete_requested.connect(self.task_delete_requested)
