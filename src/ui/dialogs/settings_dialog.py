@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt
 
 from src.core.autostart import is_autostart_enabled
+from src.ui.utils import set_combo_by_data
 
 if TYPE_CHECKING:
     from src.core.config import AppConfig
@@ -54,7 +55,7 @@ class SettingsDialog(QDialog):
         self._font_size = QComboBox()
         for val, lbl in (('small', '小'), ('medium', '中'), ('large', '大')):
             self._font_size.addItem(lbl, val)
-        self._set_combo(self._font_size, self._config.font_size)
+        set_combo_by_data(self._font_size, self._config.font_size)
         gf.addRow('字體大小', self._font_size)
 
         layout.addWidget(general_box)
@@ -102,7 +103,7 @@ class SettingsDialog(QDialog):
         self._auto_backup = QComboBox()
         for val, lbl in (('daily', '每日'), ('weekly', '每週'), ('never', '從不')):
             self._auto_backup.addItem(lbl, val)
-        self._set_combo(self._auto_backup, self._config.auto_backup)
+        set_combo_by_data(self._auto_backup, self._config.auto_backup)
         sf.addRow('自動備份', self._auto_backup)
 
         layout.addWidget(sys_box)
@@ -116,13 +117,6 @@ class SettingsDialog(QDialog):
         btn_box.accepted.connect(self.accept)
         btn_box.rejected.connect(self.reject)
         layout.addWidget(btn_box)
-
-    @staticmethod
-    def _set_combo(combo: QComboBox, value: str) -> None:
-        for i in range(combo.count()):
-            if combo.itemData(i) == value:
-                combo.setCurrentIndex(i)
-                return
 
     # ── Result properties ────────────────────────────────────────────────
     @property

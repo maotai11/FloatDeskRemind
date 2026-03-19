@@ -10,7 +10,6 @@ from PySide6.QtWidgets import (
     QLabel, QCheckBox, QScrollArea, QFrame, QSizePolicy
 )
 from PySide6.QtCore import Signal, Qt, QDate, QTime
-from PySide6.QtGui import QFont
 
 from src.data.models import Task
 from src.ui.utils import set_combo_by_data
