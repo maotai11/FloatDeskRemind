@@ -207,8 +207,11 @@ class AppController(QObject):
         from src.core.autostart import set_autostart
         dlg = SettingsDialog(self._config, parent=None)
         if dlg.exec():
-            self._config.auto_start = dlg.autostart
+            self._config.auto_start    = dlg.autostart
             self._config.float_opacity = dlg.float_opacity
+            self._config.display_days  = dlg.display_days
+            self._config.font_size     = dlg.font_size
+            self._config.auto_backup   = dlg.auto_backup
             set_autostart(dlg.autostart)
             if self._float_window:
                 self._float_window.set_opacity(dlg.float_opacity)

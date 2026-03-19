@@ -280,8 +280,7 @@ class TimePickerDialog(QDialog):
     def _update_display(self) -> None:
         m = f'{self._minute:02d}'
         suffix = 'PM' if self._is_pm else 'AM'
-        phase = '時' if self._clock.phase == ClockFace.PHASE_HOUR else '分'
-        # Highlight the active part
+        # Highlight the active selection (hour or minute)
         if hasattr(self, '_clock') and self._clock._phase == ClockFace.PHASE_HOUR:
             text = f'<span style="color:#4F46E5">{self._hour:02d}</span>:{m} {suffix}'
         else:

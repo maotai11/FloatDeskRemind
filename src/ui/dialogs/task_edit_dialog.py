@@ -99,6 +99,31 @@ class TaskEditDialog(QDialog):
 
         form.addRow('提醒時間', time_row)
 
+        # Recurring
+        if not self._parent_id:
+            recur_row = QWidget()
+            rr = QHBoxLayout(recur_row)
+            rr.setContentsMargins(0, 0, 0, 0)
+            rr.setSpacing(8)
+
+            self._recurring_check = QCheckBox('啟用重複')
+            self._recurring_check.setChecked(False)
+            rr.addWidget(self._recurring_check)
+
+            self._recurrence_rule = QComboBox()
+            for val, lbl in (
+                ('daily',   '每天'),
+                ('weekly',  '每週'),
+                ('monthly', '每月'),
+            ):
+                self._recurrence_rule.addItem(lbl, val)
+            self._recurrence_rule.setEnabled(False)
+            self._recurring_check.toggled.connect(self._recurrence_rule.setEnabled)
+            rr.addWidget(self._recurrence_rule)
+            rr.addStretch()
+
+            form.addRow('重複', recur_row)
+
         # Auto-complete (hidden for child tasks)
         self._auto_complete = QCheckBox('子任務全完成時自動完成此任務')
         self._auto_complete.setChecked(True)
@@ -175,6 +200,12 @@ class TaskEditDialog(QDialog):
             self._clear_time_btn.show()
         if hasattr(self, '_auto_complete'):
             self._auto_complete.setChecked(task.auto_complete_with_children)
+        if hasattr(self, '_recurring_check') and task.is_recurring:
+            self._recurring_check.setChecked(True)
+            for i in range(self._recurrence_rule.count()):
+                if self._recurrence_rule.itemData(i) == task.recurrence_rule:
+                    self._recurrence_rule.setCurrentIndex(i)
+                    break
 
     def _on_accept(self) -> None:
         title = self._title.text().strip()
@@ -201,6 +232,13 @@ class TaskEditDialog(QDialog):
 
         if not self._parent_id and hasattr(self, '_auto_complete'):
             task.auto_complete_with_children = self._auto_complete.isChecked()
+
+        if not self._parent_id and hasattr(self, '_recurring_check'):
+            task.is_recurring = self._recurring_check.isChecked()
+            task.recurrence_rule = (
+                self._recurrence_rule.currentData()
+                if task.is_recurring else None
+            )
 
         self._result_task = task
         self.accept()
