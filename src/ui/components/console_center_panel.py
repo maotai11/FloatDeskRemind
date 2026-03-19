@@ -7,7 +7,7 @@ from typing import List, Optional, Dict
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QTreeWidget, QTreeWidgetItem,
-    QHBoxLayout, QPushButton, QHeaderView, QAbstractItemView
+    QHBoxLayout, QPushButton, QHeaderView, QAbstractItemView, QLabel
 )
 from PySide6.QtCore import Signal, Qt
 from PySide6.QtGui import QColor
