@@ -80,7 +80,7 @@ class RightPanel(QWidget):
         self._due_date = QDateEdit()
         self._due_date.setCalendarPopup(True)
         self._due_date.setDisplayFormat('yyyy-MM-dd')
-        self._due_date.setSpecialValueText('（無）')
+        self._due_date.setSpecialValueText('無期限')
         self._due_date.setMinimumDate(NO_DATE)
         form.addRow('期限日', self._due_date)
 
