@@ -12,10 +12,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Signal, Qt, QDate, QTime
 
 from src.data.models import Task
-from src.ui.utils import set_combo_by_data
-
-# Sentinel date used to represent "no date set" in QDateEdit (special value text)
-_NO_DATE = QDate(2000, 1, 1)
+from src.ui.utils import set_combo_by_data, NO_DATE
 
 
 class RightPanel(QWidget):
@@ -84,7 +81,7 @@ class RightPanel(QWidget):
         self._due_date.setCalendarPopup(True)
         self._due_date.setDisplayFormat('yyyy-MM-dd')
         self._due_date.setSpecialValueText('（無）')
-        self._due_date.setMinimumDate(_NO_DATE)
+        self._due_date.setMinimumDate(NO_DATE)
         form.addRow('期限日', self._due_date)
 
         self._clear_date_btn = QPushButton('清除日期')
@@ -143,7 +140,7 @@ class RightPanel(QWidget):
         self._desc.clear()
         set_combo_by_data(self._status, 'pending')
         set_combo_by_data(self._priority, 'none')
-        self._due_date.setDate(QDate.currentDate())
+        self._due_date.setDate(NO_DATE)
         self._save_btn.setEnabled(False)
         self._add_child_btn.hide()
 
@@ -159,7 +156,7 @@ class RightPanel(QWidget):
             d = QDate.fromString(task.due_date, 'yyyy-MM-dd')
             self._due_date.setDate(d)
         else:
-            self._due_date.setDate(_NO_DATE)
+            self._due_date.setDate(NO_DATE)
 
         if task.due_time:
             t = QTime.fromString(task.due_time[:5], 'HH:mm')
@@ -173,7 +170,7 @@ class RightPanel(QWidget):
         self._add_child_btn.setVisible(task.parent_id is None)
 
     def _clear_due_date(self) -> None:
-        self._due_date.setDate(_NO_DATE)
+        self._due_date.setDate(NO_DATE)
 
     def _on_add_child(self) -> None:
         if self._task:
@@ -193,7 +190,7 @@ class RightPanel(QWidget):
         self._task.auto_complete_with_children = self._auto_complete.isChecked()
 
         d = self._due_date.date()
-        if d.year() > _NO_DATE.year():
+        if d.year() > NO_DATE.year():
             self._task.due_date = d.toString('yyyy-MM-dd')
         else:
             self._task.due_date = None

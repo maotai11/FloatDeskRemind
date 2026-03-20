@@ -13,7 +13,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, QDate, QTime
 
 from src.data.models import Task
-from src.ui.utils import set_combo_by_data
+from src.ui.utils import set_combo_by_data, NO_DATE
 
 
 class TaskEditDialog(QDialog):
@@ -75,7 +75,7 @@ class TaskEditDialog(QDialog):
         self._due_date.setCalendarPopup(True)
         self._due_date.setDisplayFormat('yyyy-MM-dd')
         self._due_date.setSpecialValueText('無期限')
-        self._due_date.setMinimumDate(QDate(2000, 1, 1))
+        self._due_date.setMinimumDate(NO_DATE)
         self._due_date.setDate(QDate.currentDate())
         form.addRow('期限日', self._due_date)
 
@@ -219,7 +219,7 @@ class TaskEditDialog(QDialog):
         task.priority = self._priority.currentData()
 
         d = self._due_date.date()
-        task.due_date = d.toString('yyyy-MM-dd') if d.isValid() and d.year() >= 2001 else None
+        task.due_date = d.toString('yyyy-MM-dd') if d.isValid() and d.year() > NO_DATE.year() else None
         task.due_time = self._time_str
 
         if not self._parent_id and hasattr(self, '_auto_complete'):
