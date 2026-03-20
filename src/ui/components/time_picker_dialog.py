@@ -14,6 +14,9 @@ from PySide6.QtCore import Qt, QRectF, Signal
 from PySide6.QtGui import (
     QPainter, QColor, QPen, QBrush, QFont
 )
+from src.ui.styles.theme import (
+    ACCENT, ACCENT_LIGHT, BG_BASE, TEXT_PRIMARY, BORDER_LIGHT, BORDER_NORMAL
+)
 
 
 CLOCK_SIZE = 220          # px — clock face square
@@ -27,9 +30,17 @@ _FONT_BOLD = QFont()
 _FONT_BOLD.setPointSize(10)
 _FONT_BOLD.setBold(True)
 
+# Hoisted paint colors — avoid QColor allocation per paintEvent
+_COLOR_FACE_BG     = QColor(BG_BASE)
+_COLOR_FACE_BORDER = QColor(BORDER_LIGHT)
+_COLOR_ACCENT      = QColor(ACCENT)
+_COLOR_TICK        = QColor(BORDER_NORMAL)
+_COLOR_TEXT        = QColor(TEXT_PRIMARY)
+_COLOR_WHITE       = QColor('#FFFFFF')
+
 # Tab/button active/inactive styles
-_STYLE_ACTIVE   = 'background:#4F46E5; color:white; border:none; border-radius:6px; font-weight:600;'
-_STYLE_INACTIVE = 'background:#EEF2FF; color:#4F46E5; border:none; border-radius:6px;'
+_STYLE_ACTIVE   = f'background:{ACCENT}; color:white; border:none; border-radius:6px; font-weight:600;'
+_STYLE_INACTIVE = f'background:{ACCENT_LIGHT}; color:{ACCENT}; border:none; border-radius:6px;'
 
 
 def _angle(index: int, total: int) -> float:
@@ -89,8 +100,8 @@ class ClockFace(QWidget):
         cx = cy = CLOCK_SIZE / 2
 
         # Background circle
-        p.setBrush(QBrush(QColor('#F8FAFC')))
-        p.setPen(QPen(QColor('#E2E8F0'), 2))
+        p.setBrush(QBrush(_COLOR_FACE_BG))
+        p.setPen(QPen(_COLOR_FACE_BORDER, 2))
         p.drawEllipse(QRectF(cx - RADIUS_FACE, cy - RADIUS_FACE,
                              RADIUS_FACE * 2, RADIUS_FACE * 2))
 
@@ -100,7 +111,7 @@ class ClockFace(QWidget):
             self._draw_minutes(p, cx, cy)
 
         # Center dot
-        p.setBrush(QBrush(QColor('#4F46E5')))
+        p.setBrush(QBrush(_COLOR_ACCENT))
         p.setPen(Qt.PenStyle.NoPen)
         p.drawEllipse(QRectF(cx - 4, cy - 4, 8, 8))
 
@@ -127,7 +138,7 @@ class ClockFace(QWidget):
                 self._draw_hand(p, cx, cy, x, y)
 
         # Minute tick marks (1-min resolution between labels)
-        p.setPen(QPen(QColor('#CBD5E1'), 1))
+        p.setPen(QPen(_COLOR_TICK, 1))
         for t in range(60):
             if t % 5 == 0:
                 continue
@@ -137,22 +148,22 @@ class ClockFace(QWidget):
             p.drawLine(int(tx), int(ty), int(tx2), int(ty2))
 
     def _draw_hand(self, p: QPainter, cx, cy, x, y) -> None:
-        p.setPen(QPen(QColor('#4F46E5'), 2, Qt.PenStyle.SolidLine,
+        p.setPen(QPen(_COLOR_ACCENT, 2, Qt.PenStyle.SolidLine,
                        Qt.PenCapStyle.RoundCap))
         p.drawLine(int(cx), int(cy), int(x), int(y))
-        p.setBrush(QBrush(QColor('#4F46E5')))
+        p.setBrush(QBrush(_COLOR_ACCENT))
         p.setPen(Qt.PenStyle.NoPen)
         p.drawEllipse(QRectF(x - 14, y - 14, 28, 28))
 
     def _draw_number(self, p: QPainter, x: float, y: float,
                      text: str, selected: bool) -> None:
         if selected:
-            p.setBrush(QBrush(QColor('#4F46E5')))
+            p.setBrush(QBrush(_COLOR_ACCENT))
             p.setPen(Qt.PenStyle.NoPen)
             p.drawEllipse(QRectF(x - 14, y - 14, 28, 28))
-            p.setPen(QPen(QColor('#FFFFFF')))
+            p.setPen(QPen(_COLOR_WHITE))
         else:
-            p.setPen(QPen(QColor('#1E293B')))
+            p.setPen(QPen(_COLOR_TEXT))
 
         p.setFont(_FONT_BOLD if selected else _FONT_NORMAL)
 
@@ -221,8 +232,8 @@ class TimePickerDialog(QDialog):
         self._display = QLabel()
         self._display.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._display.setStyleSheet(
-            'font-size: 36px; font-weight: 700; color: #1E293B; '
-            'background: #EEF2FF; border-radius: 10px; padding: 10px 0;'
+            f'font-size: 36px; font-weight: 700; color: {TEXT_PRIMARY}; '
+            f'background: {ACCENT_LIGHT}; border-radius: 10px; padding: 10px 0;'
         )
         layout.addWidget(self._display)
 
@@ -290,9 +301,9 @@ class TimePickerDialog(QDialog):
         m = f'{self._minute:02d}'
         suffix = 'PM' if self._is_pm else 'AM'
         if self._clock.phase == ClockFace.PHASE_HOUR:
-            text = f'<span style="color:#4F46E5">{self._hour:02d}</span>:{m} {suffix}'
+            text = f'<span style="color:{ACCENT}">{self._hour:02d}</span>:{m} {suffix}'
         else:
-            text = f'{self._hour:02d}:<span style="color:#4F46E5">{m}</span> {suffix}'
+            text = f'{self._hour:02d}:<span style="color:{ACCENT}">{m}</span> {suffix}'
         self._display.setText(text)
 
     def _update_tab_styles(self) -> None:
