@@ -2,7 +2,7 @@
 Right panel: QFormLayout task editor.
 """
 from __future__ import annotations
-from typing import Optional, TYPE_CHECKING
+from typing import Optional
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QFormLayout, QLineEdit, QTextEdit,
@@ -13,9 +13,6 @@ from PySide6.QtCore import Signal, Qt, QDate, QTime
 
 from src.data.models import Task
 from src.ui.utils import set_combo_by_data
-
-if TYPE_CHECKING:
-    pass
 
 
 class RightPanel(QWidget):

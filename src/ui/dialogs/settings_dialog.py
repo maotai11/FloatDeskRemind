@@ -72,12 +72,13 @@ class SettingsDialog(QDialog):
         or_.setContentsMargins(0, 0, 0, 0)
         or_.setSpacing(8)
 
+        opacity_pct = int(self._config.float_opacity * 100)
         self._opacity_slider = QSlider(Qt.Orientation.Horizontal)
         self._opacity_slider.setRange(30, 100)
-        self._opacity_slider.setValue(int(self._config.float_opacity * 100))
+        self._opacity_slider.setValue(opacity_pct)
         self._opacity_slider.setFixedWidth(160)
 
-        self._opacity_label = QLabel(f'{int(self._config.float_opacity * 100)}%')
+        self._opacity_label = QLabel(f'{opacity_pct}%')
         self._opacity_label.setFixedWidth(36)
         self._opacity_slider.valueChanged.connect(
             lambda v: self._opacity_label.setText(f'{v}%')
