@@ -93,7 +93,7 @@ class RightPanel(QWidget):
         # Due time
         self._due_time = QTimeEdit()
         self._due_time.setDisplayFormat('HH:mm')
-        self._due_time.setSpecialValueText('（無時間）')
+        self._due_time.setSpecialValueText('無時間')
         form.addRow('期限時', self._due_time)
 
         # Auto complete
