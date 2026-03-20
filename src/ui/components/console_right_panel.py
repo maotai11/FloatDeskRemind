@@ -15,7 +15,7 @@ from src.data.models import Task
 from src.ui.utils import set_combo_by_data
 
 # Sentinel date used to represent "no date set" in QDateEdit (special value text)
-_NO_DATE = _NO_DATE
+_NO_DATE = QDate(2000, 1, 1)
 
 
 class RightPanel(QWidget):
