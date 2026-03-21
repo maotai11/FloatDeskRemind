@@ -157,20 +157,27 @@ class FloatWindow(QWidget):
         self.geometry_changed.emit(geo.x(), geo.y(), geo.width(), geo.height())
 
     def _restore_geometry(self) -> None:
+        from PySide6.QtWidgets import QApplication
+        from PySide6.QtCore import QPoint
         w = self._config.float_width
         h = self._config.float_height
         self.resize(w, h)
-        if self._config.float_pos_x >= 0 and self._config.float_pos_y >= 0:
-            self.move(self._config.float_pos_x, self._config.float_pos_y)
+        x, y = self._config.float_pos_x, self._config.float_pos_y
+        # Check if saved position is visible on any current screen
+        on_screen = (x >= 0 and y >= 0 and any(
+            s.availableGeometry().contains(QPoint(x, y))
+            for s in QApplication.screens()
+        ))
+        if on_screen:
+            self.move(x, y)
         else:
-            from PySide6.QtWidgets import QApplication
             screen = QApplication.primaryScreen()
             if screen:
                 rect = screen.availableGeometry()
                 self.move(rect.right() - w - 20, rect.top() + 40)
 
     def refresh(self, tasks: List[Task]) -> None:
-        dates = next_n_days(3)
+        dates = next_n_days(self._config.display_days)
         tasks_by_date: Dict[str, List[Task]] = {d: [] for d in dates}
         for task in tasks:
             if task.due_date in tasks_by_date:

@@ -109,7 +109,10 @@ class CenterPanel(QWidget):
             self._current_view = view
         self._all_tasks = tasks
         self._task_map = {t.id: t for t in tasks}
+        selected_id = self.get_selected_task_id()
         self._rebuild_tree()
+        if selected_id:
+            self.select_task(selected_id)
 
     def _filter_tasks(self) -> List[Task]:
         today_str = date.today().isoformat()

@@ -48,11 +48,19 @@ class AppController(QObject):
 
     def start(self) -> None:
         """Initialize and show the app."""
+        self._apply_font_size()
         self._setup_tray()
         self._setup_float_window()
         self._setup_console_window()
         self._refresh_all()
         self._float_window.show()
+
+    def _apply_font_size(self) -> None:
+        from src.ui.styles.theme import FONT_SIZE_MAP
+        pt = FONT_SIZE_MAP.get(self._config.font_size, 13)
+        font = QApplication.font()
+        font.setPointSize(pt)
+        QApplication.setFont(font)
 
     # ------------------------------------------------------------------
     # Setup
@@ -109,7 +117,7 @@ class AppController(QObject):
     # ------------------------------------------------------------------
     def _refresh_all(self) -> None:
         tasks = self._task_service.get_all_active()
-        float_dates = set(next_n_days(3))
+        float_dates = set(next_n_days(self._config.display_days))
         float_tasks = [t for t in tasks if t.due_date in float_dates and t.status == 'pending']
 
         if self._float_window:
@@ -216,6 +224,7 @@ class AppController(QObject):
             if self._float_window:
                 self._float_window.set_opacity(dlg.float_opacity)
                 self._float_window.update()
+            self._apply_font_size()
             self._save_config()
 
     # ------------------------------------------------------------------
@@ -224,5 +233,31 @@ class AppController(QObject):
     def _save_config(self) -> None:
         try:
             self._config.save(self._settings_repo)
+            self._run_backup_if_due()
         except Exception as e:
             logger.error(f'Save config failed: {e}')
+
+    def _run_backup_if_due(self) -> None:
+        """Copy the DB file to the backups directory if auto_backup policy requires it."""
+        if self._config.auto_backup == 'never':
+            return
+        try:
+            import shutil
+            from datetime import date
+            from src.core.paths import APP_DATA_DIR, DB_PATH
+            backup_dir = APP_DATA_DIR / 'backups'
+            backup_dir.mkdir(exist_ok=True)
+            stamp = date.today().isoformat()
+            # weekly: use ISO week number as stamp suffix
+            if self._config.auto_backup == 'weekly':
+                stamp = f'{date.today().isocalendar()[0]}-W{date.today().isocalendar()[1]:02d}'
+            dest = backup_dir / f'floatdesk_{stamp}.db'
+            if not dest.exists():
+                shutil.copy2(DB_PATH, dest)
+                logger.info(f'DB backed up to {dest}')
+            # Keep only last 7 backup files
+            backups = sorted(backup_dir.glob('floatdesk_*.db'))
+            for old in backups[:-7]:
+                old.unlink(missing_ok=True)
+        except Exception as e:
+            logger.warning(f'Backup failed (non-fatal): {e}')

@@ -39,11 +39,13 @@ def setup_logger(name: str = 'floatdesk') -> logging.Logger:
         import sys
         print(f'[floatdesk] WARNING: could not set up file logger: {e}', file=sys.stderr)
 
-    # Console handler (useful in dev; no-op in windowed EXE since there's no console)
-    ch = logging.StreamHandler()
-    ch.setLevel(logging.INFO)
-    ch.setFormatter(formatter)
-    logger.addHandler(ch)
+    # Console handler — only attach when stderr exists (windowed EXE has no console)
+    import sys as _sys
+    if _sys.stderr is not None:
+        ch = logging.StreamHandler()
+        ch.setLevel(logging.INFO)
+        ch.setFormatter(formatter)
+        logger.addHandler(ch)
 
     return logger
 
