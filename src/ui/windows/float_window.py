@@ -6,7 +6,7 @@ from __future__ import annotations
 from typing import List, Dict
 
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QApplication
 )
 from PySide6.QtCore import Signal, Qt, QPoint, QRectF
 from PySide6.QtGui import QPainter, QColor, QPen, QBrush, QCursor
@@ -157,18 +157,11 @@ class FloatWindow(QWidget):
         self.geometry_changed.emit(geo.x(), geo.y(), geo.width(), geo.height())
 
     def _restore_geometry(self) -> None:
-        from PySide6.QtWidgets import QApplication
-        from PySide6.QtCore import QPoint
         w = self._config.float_width
         h = self._config.float_height
         self.resize(w, h)
         x, y = self._config.float_pos_x, self._config.float_pos_y
-        # Check if saved position is visible on any current screen
-        on_screen = (x >= 0 and y >= 0 and any(
-            s.availableGeometry().contains(QPoint(x, y))
-            for s in QApplication.screens()
-        ))
-        if on_screen:
+        if any(s.availableGeometry().contains(QPoint(x, y)) for s in QApplication.screens()):
             self.move(x, y)
         else:
             screen = QApplication.primaryScreen()

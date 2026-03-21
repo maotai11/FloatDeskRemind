@@ -43,6 +43,7 @@ class CenterPanel(QWidget):
         self._current_view = VIEW_TODAY
         self._all_tasks: List[Task] = []
         self._task_map: Dict[str, Task] = {}
+        self._item_map: Dict[str, QTreeWidgetItem] = {}
         self._build_ui()
 
     def _build_ui(self) -> None:
@@ -133,6 +134,7 @@ class CenterPanel(QWidget):
 
     def _rebuild_tree(self) -> None:
         self._tree.clear()
+        self._item_map.clear()
         visible = self._filter_tasks()
         today_str = date.today().isoformat()
 
@@ -171,6 +173,7 @@ class CenterPanel(QWidget):
             _STATUS_LABELS.get(task.status, task.status),
         ])
         item.setData(0, TASK_ID_ROLE, task.id)
+        self._item_map[task.id] = item
 
         if task.status == 'done':
             for col in range(4):
@@ -233,9 +236,6 @@ class CenterPanel(QWidget):
         return items[0].data(0, TASK_ID_ROLE)
 
     def select_task(self, task_id: str) -> None:
-        for item in self._tree.findItems(
-            '', Qt.MatchFlag.MatchContains | Qt.MatchFlag.MatchRecursive
-        ):
-            if item.data(0, TASK_ID_ROLE) == task_id:
-                self._tree.setCurrentItem(item)
-                return
+        item = self._item_map.get(task_id)
+        if item:
+            self._tree.setCurrentItem(item)

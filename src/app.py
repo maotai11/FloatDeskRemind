@@ -4,6 +4,8 @@ Owns repositories, services, and windows.
 Signal routing: UI events → Service → Repository → DB → refresh signals → UI
 """
 from __future__ import annotations
+import shutil
+from datetime import date
 from typing import List, Optional
 
 from PySide6.QtCore import QObject, Signal
@@ -11,8 +13,10 @@ from PySide6.QtWidgets import QApplication
 
 from src.core.config import AppConfig
 from src.core.logger import logger
+from src.core.paths import APP_DATA_DIR, DB_PATH
 from src.core.utils import next_n_days
 from src.data.database import run_migrations
+from src.ui.styles.theme import FONT_SIZE_MAP
 from src.data.task_repository import TaskRepository
 from src.data.settings_repository import SettingsRepository
 from src.data.models import Task
@@ -56,7 +60,6 @@ class AppController(QObject):
         self._float_window.show()
 
     def _apply_font_size(self) -> None:
-        from src.ui.styles.theme import FONT_SIZE_MAP
         pt = FONT_SIZE_MAP.get(self._config.font_size, 13)
         font = QApplication.font()
         font.setPointSize(pt)
@@ -238,24 +241,21 @@ class AppController(QObject):
             logger.error(f'Save config failed: {e}')
 
     def _run_backup_if_due(self) -> None:
-        """Copy the DB file to the backups directory if auto_backup policy requires it."""
         if self._config.auto_backup == 'never':
             return
         try:
-            import shutil
-            from datetime import date
-            from src.core.paths import APP_DATA_DIR, DB_PATH
+            today = date.today()
+            if self._config.auto_backup == 'weekly':
+                iso = today.isocalendar()
+                stamp = f'{iso[0]}-W{iso[1]:02d}'
+            else:
+                stamp = today.isoformat()
             backup_dir = APP_DATA_DIR / 'backups'
             backup_dir.mkdir(exist_ok=True)
-            stamp = date.today().isoformat()
-            # weekly: use ISO week number as stamp suffix
-            if self._config.auto_backup == 'weekly':
-                stamp = f'{date.today().isocalendar()[0]}-W{date.today().isocalendar()[1]:02d}'
             dest = backup_dir / f'floatdesk_{stamp}.db'
             if not dest.exists():
                 shutil.copy2(DB_PATH, dest)
                 logger.info(f'DB backed up to {dest}')
-            # Keep only last 7 backup files
             backups = sorted(backup_dir.glob('floatdesk_*.db'))
             for old in backups[:-7]:
                 old.unlink(missing_ok=True)
