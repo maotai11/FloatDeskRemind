@@ -9,15 +9,17 @@ from __future__ import annotations
 from typing import Optional, List, Dict
 
 from PySide6.QtWidgets import (
-    QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, QSplitter, QApplication
+    QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, QSplitter
 )
-from PySide6.QtCore import Signal, Qt, QPoint
+from PySide6.QtCore import Signal, Qt
 from PySide6.QtGui import QShortcut, QKeySequence, QCloseEvent, QIcon
 
 from src.data.models import Task
+from src.data.phase_repository import PhaseRepository
 from src.core.config import AppConfig
 from src.core.paths import ASSETS_DIR
-from src.ui.components.console_left_panel import LeftPanel
+from src.ui.utils import restore_window_geometry
+from src.ui.components.console_left_panel import LeftPanel, VIEW_SEARCH
 from src.ui.components.console_center_panel import CenterPanel
 from src.ui.components.console_right_panel import RightPanel
 from src.ui.components.search_bar import SearchBar
@@ -35,11 +37,11 @@ class ConsoleWindow(QMainWindow):
     task_restore_requested = Signal(str)       # task_id
     search_requested = Signal(str)             # query
     console_geometry_changed = Signal(int, int, int, int, int)  # x, y, w, h, splitter
-    closed = Signal()
 
-    def __init__(self, config: AppConfig, parent=None):
+    def __init__(self, config: AppConfig, phase_repo: PhaseRepository, parent=None):
         super().__init__(parent)
         self._config = config
+        self._phase_repo = phase_repo
         self.setWindowTitle('FloatDesk Remind — 主控台')
         self.setMinimumSize(900, 600)
         self._task_map: Dict[str, Task] = {}
@@ -91,7 +93,7 @@ class ConsoleWindow(QMainWindow):
         splitter.addWidget(center_container)
 
         # Right panel
-        self._right = RightPanel()
+        self._right = RightPanel(phase_repo=self._phase_repo)
         self._right.save_requested.connect(self._on_save_task)
         self._right.cancel_requested.connect(self._on_cancel_edit)
         self._right.add_child_requested.connect(self._on_add_child_task)
@@ -112,18 +114,17 @@ class ConsoleWindow(QMainWindow):
         QShortcut(QKeySequence('Space'), self).activated.connect(self._on_space_toggle)
 
     def _restore_geometry(self) -> None:
-        w = self._config.console_width
-        h = self._config.console_height
-        self.resize(w, h)
-        x, y = self._config.console_x, self._config.console_y
-        if any(s.availableGeometry().contains(QPoint(x, y)) for s in QApplication.screens()):
-            self.move(x, y)
+        restore_window_geometry(
+            self, self._config.console_x, self._config.console_y,
+            self._config.console_width, self._config.console_height
+        )
 
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
-    def refresh(self, tasks: List[Task], status_msg: str = '') -> None:
-        self._task_map = {t.id: t for t in tasks}
+    def refresh(self, tasks: List[Task], status_msg: str = '', is_search: bool = False) -> None:
+        if not is_search:
+            self._task_map = {t.id: t for t in tasks}
         self._center.refresh(tasks)
         if status_msg:
             self._status.show_message(status_msg)
@@ -135,12 +136,17 @@ class ConsoleWindow(QMainWindow):
         self._right.load_task(task)
         self._center.select_task(task.id)
 
+    def get_splitter_size(self) -> int:
+        return self._splitter.sizes()[0]
+
     # ------------------------------------------------------------------
     # View change
     # ------------------------------------------------------------------
     def _on_view_changed(self, view: str) -> None:
         self._center.refresh(list(self._task_map.values()), view)
         self._search_bar.clear()
+        if view == VIEW_SEARCH:
+            self._search_bar.set_focus()
 
     # ------------------------------------------------------------------
     # Search
@@ -231,4 +237,3 @@ class ConsoleWindow(QMainWindow):
             geo.x(), geo.y(), geo.width(), geo.height(), splitter_center
         )
         self.hide()
-        self.closed.emit()

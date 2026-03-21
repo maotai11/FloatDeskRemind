@@ -146,17 +146,8 @@ class TaskRepository:
             conn.commit()
 
     # ------------------------------------------------------------------
-    # Delete (soft)
+    # Delete
     # ------------------------------------------------------------------
-    def soft_delete(self, task_id: str) -> None:
-        now = _now_iso()
-        with self._conn() as conn:
-            conn.execute(
-                "UPDATE tasks SET status='deleted', deleted_at=?, updated_at=? WHERE id=?",
-                (now, now, task_id)
-            )
-            conn.commit()
-
     def hard_delete(self, task_id: str) -> None:
         with self._conn() as conn:
             conn.execute('DELETE FROM tasks WHERE id=?', (task_id,))

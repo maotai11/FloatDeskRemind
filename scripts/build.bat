@@ -31,5 +31,6 @@ for %%F in ("dist\FloatDeskRemind\FloatDeskRemind.exe") do echo EXE timestamp : 
 for %%F in ("dist\FloatDeskRemind\FloatDeskRemind.exe") do echo EXE size      : %%~zF bytes
 echo.
 echo To distribute: zip the entire dist\FloatDeskRemind\ folder.
+echo WARNING: Do NOT copy only FloatDeskRemind.exe. The _internal\ folder must be included.
 echo.
 pause

@@ -58,15 +58,9 @@ def main() -> int:
 
 
 def _apply_stylesheet(app: QApplication) -> None:
-    import sys
-    from pathlib import Path
     from src.core.paths import QSS_PATH
 
-    candidates = [
-        QSS_PATH,  # resolved via _MEIPASS in frozen, or project root in dev
-    ]
-    # Extra dev fallback: running directly as 'python src/main.py' from project root
-    candidates.append(Path(__file__).parent.parent / 'src' / 'ui' / 'styles' / 'main.qss')
+    candidates = [QSS_PATH]
 
     for path in candidates:
         if path.exists():

@@ -19,6 +19,7 @@ from src.data.database import run_migrations
 from src.ui.styles.theme import FONT_SIZE_MAP
 from src.data.task_repository import TaskRepository
 from src.data.settings_repository import SettingsRepository
+from src.data.phase_repository import PhaseRepository
 from src.data.models import Task
 from src.services.task_service import TaskService, CompleteResult
 from src.ui.dialogs.confirm_complete_dialog import ConfirmCompleteDialog
@@ -40,6 +41,7 @@ class AppController(QObject):
         # Repositories & services
         self._settings_repo = SettingsRepository()
         self._task_repo = TaskRepository()
+        self._phase_repo = PhaseRepository()
         self._task_service = TaskService(self._task_repo)
         self._config = AppConfig.load(self._settings_repo)
 
@@ -91,7 +93,7 @@ class AppController(QObject):
         self._float_window.geometry_changed.connect(self._on_float_geometry_changed)
 
     def _setup_console_window(self) -> None:
-        self._console_window = ConsoleWindow(self._config)
+        self._console_window = ConsoleWindow(self._config, self._phase_repo)
         self._console_window.task_add_requested.connect(self._on_add_task)
         self._console_window.task_update_requested.connect(self._on_update_task)
         self._console_window.task_delete_requested.connect(self._on_delete_task)
@@ -119,6 +121,13 @@ class AppController(QObject):
             self._console_window.refresh(tasks)
 
     def _quit(self) -> None:
+        if self._console_window:
+            geo = self._console_window.geometry()
+            self._config.console_x = geo.x()
+            self._config.console_y = geo.y()
+            self._config.console_width = geo.width()
+            self._config.console_height = geo.height()
+            self._config.console_splitter = self._console_window.get_splitter_size()
         self._save_config()
         QApplication.quit()
 
@@ -206,7 +215,7 @@ class AppController(QObject):
     def _on_search(self, query: str) -> None:
         results = self._task_service.search(query)
         if self._console_window:
-            self._console_window.refresh(results, f'搜尋「{query}」：{len(results)} 筆')
+            self._console_window.refresh(results, f'搜尋「{query}」：{len(results)} 筆', is_search=True)
 
     # ------------------------------------------------------------------
     # Float window geometry
@@ -224,6 +233,7 @@ class AppController(QObject):
         self._config.console_width = w
         self._config.console_height = h
         self._config.console_splitter = splitter
+        self._geo_save_timer.start()
 
     # ------------------------------------------------------------------
     # Settings

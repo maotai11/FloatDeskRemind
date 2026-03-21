@@ -15,7 +15,7 @@ def _get_base_dir() -> Path:
 
 def _get_app_data_dir() -> Path:
     import os
-    appdata = os.environ.get('APPDATA', Path.home())
+    appdata = os.environ.get('APPDATA') or str(Path.home())
     return Path(appdata) / 'FloatDeskRemind'
 
 

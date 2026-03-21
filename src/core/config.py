@@ -8,6 +8,20 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from src.data.settings_repository import SettingsRepository
 
+def _safe_float(s: str, default: float) -> float:
+    try:
+        return float(s)
+    except (ValueError, TypeError):
+        return default
+
+
+def _safe_int(s: str, default: int) -> int:
+    try:
+        return int(s)
+    except (ValueError, TypeError):
+        return default
+
+
 DEFAULTS = {
     'theme': 'light',
     'accent_color': 'blue',
@@ -52,44 +66,49 @@ class AppConfig:
     @classmethod
     def load(cls, repo: 'SettingsRepository') -> 'AppConfig':
         cfg = cls()
-        cfg.theme = repo.get('theme', DEFAULTS['theme'])
-        cfg.accent_color = repo.get('accent_color', DEFAULTS['accent_color'])
-        cfg.font_size = repo.get('font_size', DEFAULTS['font_size'])
-        cfg.float_opacity = float(repo.get('float_opacity', DEFAULTS['float_opacity']))
-        cfg.display_days = int(repo.get('display_days', DEFAULTS['display_days']))
-        cfg.auto_backup = repo.get('auto_backup', DEFAULTS['auto_backup'])
-        cfg.auto_start = repo.get('auto_start', DEFAULTS['auto_start']) == 'true'
-        cfg.language = repo.get('language', DEFAULTS['language'])
-        px = repo.get('float_pos_x', DEFAULTS['float_pos_x'])
-        py = repo.get('float_pos_y', DEFAULTS['float_pos_y'])
-        cfg.float_pos_x = int(px) if px else -1
-        cfg.float_pos_y = int(py) if py else -1
-        cfg.float_width = int(repo.get('float_width', DEFAULTS['float_width']))
-        cfg.float_height = int(repo.get('float_height', DEFAULTS['float_height']))
-        cx = repo.get('console_x', DEFAULTS['console_x'])
-        cy = repo.get('console_y', DEFAULTS['console_y'])
-        cfg.console_x = int(cx) if cx else -1
-        cfg.console_y = int(cy) if cy else -1
-        cfg.console_width = int(repo.get('console_width', DEFAULTS['console_width']))
-        cfg.console_height = int(repo.get('console_height', DEFAULTS['console_height']))
-        cfg.console_splitter = int(repo.get('console_splitter', DEFAULTS['console_splitter']))
+        all_s = repo.get_all()
+
+        def _get(key: str) -> str:
+            return all_s.get(key, DEFAULTS.get(key, ''))
+
+        cfg.theme = _get('theme')
+        cfg.accent_color = _get('accent_color')
+        cfg.font_size = _get('font_size')
+        cfg.float_opacity = _safe_float(_get('float_opacity'), 0.95)
+        cfg.display_days = _safe_int(_get('display_days'), 3)
+        cfg.auto_backup = _get('auto_backup')
+        cfg.auto_start = _get('auto_start') == 'true'
+        cfg.language = _get('language')
+        px, py = _get('float_pos_x'), _get('float_pos_y')
+        cfg.float_pos_x = _safe_int(px, -1) if px else -1
+        cfg.float_pos_y = _safe_int(py, -1) if py else -1
+        cfg.float_width = _safe_int(_get('float_width'), 320)
+        cfg.float_height = _safe_int(_get('float_height'), 480)
+        cx, cy = _get('console_x'), _get('console_y')
+        cfg.console_x = _safe_int(cx, -1) if cx else -1
+        cfg.console_y = _safe_int(cy, -1) if cy else -1
+        cfg.console_width = _safe_int(_get('console_width'), 1100)
+        cfg.console_height = _safe_int(_get('console_height'), 700)
+        cfg.console_splitter = _safe_int(_get('console_splitter'), 600)
         return cfg
 
     def save(self, repo: 'SettingsRepository') -> None:
-        repo.set('theme', self.theme)
-        repo.set('accent_color', self.accent_color)
-        repo.set('font_size', self.font_size)
-        repo.set('float_opacity', str(self.float_opacity))
-        repo.set('display_days', str(self.display_days))
-        repo.set('auto_backup', self.auto_backup)
-        repo.set('auto_start', 'true' if self.auto_start else 'false')
-        repo.set('language', self.language)
-        repo.set('float_pos_x', str(self.float_pos_x))
-        repo.set('float_pos_y', str(self.float_pos_y))
-        repo.set('float_width', str(self.float_width))
-        repo.set('float_height', str(self.float_height))
-        repo.set('console_x', str(self.console_x))
-        repo.set('console_y', str(self.console_y))
-        repo.set('console_width', str(self.console_width))
-        repo.set('console_height', str(self.console_height))
-        repo.set('console_splitter', str(self.console_splitter))
+        repo.set_many({
+            'theme': self.theme,
+            'accent_color': self.accent_color,
+            'font_size': self.font_size,
+            'float_opacity': str(self.float_opacity),
+            'display_days': str(self.display_days),
+            'auto_backup': self.auto_backup,
+            'auto_start': 'true' if self.auto_start else 'false',
+            'language': self.language,
+            'float_pos_x': str(self.float_pos_x),
+            'float_pos_y': str(self.float_pos_y),
+            'float_width': str(self.float_width),
+            'float_height': str(self.float_height),
+            'console_x': str(self.console_x),
+            'console_y': str(self.console_y),
+            'console_width': str(self.console_width),
+            'console_height': str(self.console_height),
+            'console_splitter': str(self.console_splitter),
+        })

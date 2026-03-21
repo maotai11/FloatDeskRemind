@@ -57,6 +57,9 @@ def run_migrations(db_path: Path = None) -> None:
     for version, module in migrations:
         if current < version:
             logger.info(f'Running migration v{version:03d}')
-            with get_connection(db_path) as conn:
-                module.run(conn)
+            try:
+                with get_connection(db_path) as conn:
+                    module.run(conn)
+            except Exception as e:
+                raise RuntimeError(f'資料庫初始化失敗（版本 {version}）') from e
             logger.info(f'Migration v{version:03d} done')

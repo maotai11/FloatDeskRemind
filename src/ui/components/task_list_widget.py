@@ -1,5 +1,5 @@
 """
-TaskListWidget: float window 3-day task list with date section headers.
+TaskListWidget: float window N-day task list with date section headers.
 """
 from __future__ import annotations
 from datetime import date
@@ -12,10 +12,21 @@ from PySide6.QtCore import Signal, Qt
 
 from src.data.models import Task
 from src.services.sort_service import sort_tasks
-from src.core.utils import next_n_days
 from src.ui.components.task_item_widget import TaskItemWidget
 
-DAY_LABELS = ['今日', '明日', '後日']
+
+def _day_label(d_str: str, today: date) -> str:
+    """Return 今天 / 明天 / M月D日 based on delta from today."""
+    try:
+        dt = date.fromisoformat(d_str)
+    except ValueError:
+        return d_str
+    delta = (dt - today).days
+    if delta == 0:
+        return '今天'
+    if delta == 1:
+        return '明天'
+    return f'{dt.month}月{dt.day}日'
 
 
 class TaskListWidget(QWidget):
@@ -56,17 +67,18 @@ class TaskListWidget(QWidget):
                 item.widget().deleteLater()
         self._items.clear()
 
-        dates = next_n_days(3)
-        today_str = date.today().isoformat()
+        today = date.today()
+        today_str = today.isoformat()
+        dates = sorted(tasks_by_date.keys())
 
-        for i, d in enumerate(dates):
+        for d in dates:
             tasks = tasks_by_date.get(d, [])
             sorted_tasks = sort_tasks(tasks)
             is_today = (d == today_str)
-            day_lbl = DAY_LABELS[i]
+            day_lbl = _day_label(d, today)
 
             # Section header
-            header = QLabel(f'{day_lbl}  {d}')
+            header = QLabel(day_lbl)
             header.setStyleSheet(
                 f'color: {"#4F46E5" if is_today else "#64748B"};'
                 f'font-weight: {"700" if is_today else "500"};'
@@ -91,3 +103,4 @@ class TaskListWidget(QWidget):
                     self._items[task.id] = item
 
         self._content_layout.addStretch()
+

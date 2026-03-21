@@ -30,12 +30,14 @@ CREATE INDEX IF NOT EXISTS idx_tasks_parent ON tasks(parent_id);
 CREATE INDEX IF NOT EXISTS idx_tasks_due_date ON tasks(due_date);
 CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
 
+-- Planned v0.2: tag filtering UI
 CREATE TABLE IF NOT EXISTS task_tags (
     task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
     tag TEXT NOT NULL,
     PRIMARY KEY (task_id, tag)
 );
 
+-- Planned v0.2: reminder scheduling & notification
 CREATE TABLE IF NOT EXISTS task_reminders (
     id TEXT PRIMARY KEY,
     task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
@@ -45,6 +47,7 @@ CREATE TABLE IF NOT EXISTS task_reminders (
     is_fired INTEGER NOT NULL DEFAULT 0
 );
 
+-- Planned v0.2: multi-phase task tracking
 CREATE TABLE IF NOT EXISTS task_phases (
     id TEXT PRIMARY KEY,
     task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
@@ -66,6 +69,9 @@ CREATE TABLE IF NOT EXISTS db_version (
 );
 """
 
+# Seed values for first-run install. Geometry keys are intentionally omitted —
+# they default to -1 (unset) and are written only after the first window move.
+# Values here must match DEFAULTS in src/core/config.py for the 8 listed keys.
 DEFAULT_SETTINGS = [
     ('theme', 'light'),
     ('accent_color', 'blue'),

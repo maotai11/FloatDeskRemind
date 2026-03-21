@@ -10,13 +10,14 @@ from PySide6.QtWidgets import (
     QLineEdit, QTextEdit, QComboBox, QDateEdit,
     QPushButton, QLabel, QCheckBox, QDialogButtonBox, QWidget
 )
-from PySide6.QtCore import Qt, QDate, QTime
+from PySide6.QtCore import Qt, QDate
 
 from src.data.models import Task
 from src.ui.utils import set_combo_by_data, NO_DATE
+from src.ui.components.time_picker_mixin import TimePickerMixin
 
 
-class TaskEditDialog(QDialog):
+class TaskEditDialog(QDialog, TimePickerMixin):
     def __init__(
         self,
         task: Optional[Task] = None,
@@ -100,31 +101,6 @@ class TaskEditDialog(QDialog):
 
         form.addRow('提醒時間', time_row)
 
-        # Recurring
-        if not self._parent_id:
-            recur_row = QWidget()
-            rr = QHBoxLayout(recur_row)
-            rr.setContentsMargins(0, 0, 0, 0)
-            rr.setSpacing(8)
-
-            self._recurring_check = QCheckBox('啟用重複')
-            self._recurring_check.setChecked(False)
-            rr.addWidget(self._recurring_check)
-
-            self._recurrence_rule = QComboBox()
-            for val, lbl in (
-                ('daily',   '每天'),
-                ('weekly',  '每週'),
-                ('monthly', '每月'),
-            ):
-                self._recurrence_rule.addItem(lbl, val)
-            self._recurrence_rule.setEnabled(False)
-            self._recurring_check.toggled.connect(self._recurrence_rule.setEnabled)
-            rr.addWidget(self._recurrence_rule)
-            rr.addStretch()
-
-            form.addRow('重複', recur_row)
-
         # Auto-complete (hidden for child tasks)
         self._auto_complete = QCheckBox('子任務全完成時自動完成此任務')
         self._auto_complete.setChecked(True)
@@ -151,39 +127,6 @@ class TaskEditDialog(QDialog):
         btn_box.rejected.connect(self.reject)
         layout.addWidget(btn_box)
 
-    def _open_time_picker(self) -> None:
-        from src.ui.components.time_picker_dialog import TimePickerDialog
-        # Parse existing time if set
-        h, m, pm = 9, 0, False
-        if self._time_str:
-            try:
-                parts = self._time_str.split(':')
-                h24 = int(parts[0])
-                m = int(parts[1])
-                pm = h24 >= 12
-                h = h24 % 12 or 12
-            except Exception:
-                pass
-        dlg = TimePickerDialog(hour=h, minute=m, is_pm=pm, parent=self)
-        if dlg.exec():
-            self._time_str = dlg.get_time_str()
-            self._apply_time_btn_selected()
-
-    def _apply_time_btn_selected(self) -> None:
-        self._time_btn.setText(self._time_str)
-        self._time_btn.setStyleSheet(
-            'background-color: #EEF2FF; color: #4F46E5; '
-            'border: 1.5px solid #4F46E5; border-radius: 6px; '
-            'padding: 7px 12px; font-weight: 600;'
-        )
-        self._clear_time_btn.show()
-
-    def _clear_time(self) -> None:
-        self._time_str = None
-        self._time_btn.setText('＋ 設定時間（可選）')
-        self._time_btn.setStyleSheet('')  # revert to QSS default
-        self._clear_time_btn.hide()
-
     def _load_task(self, task: Task) -> None:
         self._title.setText(task.title)
         self._desc.setPlainText(task.description or '')
@@ -195,9 +138,6 @@ class TaskEditDialog(QDialog):
             self._apply_time_btn_selected()
         if hasattr(self, '_auto_complete'):
             self._auto_complete.setChecked(task.auto_complete_with_children)
-        if hasattr(self, '_recurring_check') and task.is_recurring:
-            self._recurring_check.setChecked(True)
-            set_combo_by_data(self._recurrence_rule, task.recurrence_rule)
 
     def _on_accept(self) -> None:
         title = self._title.text().strip()
@@ -224,13 +164,6 @@ class TaskEditDialog(QDialog):
 
         if not self._parent_id and hasattr(self, '_auto_complete'):
             task.auto_complete_with_children = self._auto_complete.isChecked()
-
-        if not self._parent_id and hasattr(self, '_recurring_check'):
-            task.is_recurring = self._recurring_check.isChecked()
-            task.recurrence_rule = (
-                self._recurrence_rule.currentData()
-                if task.is_recurring else None
-            )
 
         self._result_task = task
         self.accept()

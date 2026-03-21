@@ -35,7 +35,6 @@ class TaskItemWidget(QWidget):
         self._task = task
         self._ref_date = reference_date_str
         self._build_ui()
-        self.setFixedHeight(40)
 
     def _build_ui(self) -> None:
         self.setStyleSheet(
@@ -106,6 +105,14 @@ class TaskItemWidget(QWidget):
     def _on_check(self, checked: bool) -> None:
         if checked and self._task.status != 'done':
             self.completed.emit(self._task.id)
+        elif not checked and self._task.status == 'done':
+            # Float window does not support restore — snap back and hint user
+            self._check.blockSignals(True)
+            try:
+                self._check.setChecked(True)
+            finally:
+                self._check.blockSignals(False)
+            self._check.setToolTip('還原請至主控台')
 
     def _show_context_menu(self, pos) -> None:
         menu = QMenu(self)

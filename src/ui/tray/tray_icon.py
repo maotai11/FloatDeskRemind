@@ -28,9 +28,9 @@ class TrayIcon(QSystemTrayIcon):
         if icon_path.exists():
             self.setIcon(QIcon(str(icon_path)))
         else:
-            from PySide6.QtGui import QPixmap
+            from PySide6.QtGui import QPixmap, QColor
             px = QPixmap(32, 32)
-            px.fill()
+            px.fill(QColor('#4F46E5'))
             self.setIcon(QIcon(px))
 
         self.setToolTip('FloatDesk Remind')

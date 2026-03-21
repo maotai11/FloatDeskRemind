@@ -29,6 +29,16 @@ class SettingsRepository:
             )
             conn.commit()
 
+    def set_many(self, items: dict) -> None:
+        with get_connection(self._db) as conn:
+            for key, value in items.items():
+                conn.execute(
+                    'INSERT INTO settings(key, value) VALUES(?,?) '
+                    'ON CONFLICT(key) DO UPDATE SET value=excluded.value',
+                    (key, value)
+                )
+            conn.commit()
+
     def get_all(self) -> dict:
         with get_connection(self._db) as conn:
             rows = conn.execute('SELECT key, value FROM settings').fetchall()

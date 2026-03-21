@@ -1,5 +1,5 @@
 """
-Right panel: QFormLayout task editor.
+Right panel: QFormLayout task editor + phase tasks section.
 """
 from __future__ import annotations
 from typing import Optional
@@ -11,19 +11,23 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Signal, Qt, QDate
 
-from src.data.models import Task
+from src.data.models import Task, TaskPhase
+from src.data.phase_repository import PhaseRepository
 from src.ui.utils import set_combo_by_data, NO_DATE
+from src.ui.components.time_picker_mixin import TimePickerMixin
+from src.core.logger import logger
 
 
-class RightPanel(QWidget):
+class RightPanel(QWidget, TimePickerMixin):
     save_requested = Signal(object)   # Task
     cancel_requested = Signal()
     add_child_requested = Signal(str)  # parent_id
 
-    def __init__(self, parent=None):
+    def __init__(self, phase_repo: PhaseRepository, parent=None):
         super().__init__(parent)
         self._task: Optional[Task] = None
         self._time_str: Optional[str] = None  # 'HH:MM' or None
+        self._phase_repo = phase_repo
         self._build_ui()
         self.show_empty()
 
@@ -124,6 +128,47 @@ class RightPanel(QWidget):
         self._add_child_btn.clicked.connect(self._on_add_child)
         layout.addWidget(self._add_child_btn)
 
+        # Phase section (hidden until task is loaded)
+        self._phase_section = QWidget()
+        phase_outer = QVBoxLayout(self._phase_section)
+        phase_outer.setContentsMargins(0, 8, 0, 0)
+        phase_outer.setSpacing(6)
+
+        sep = QFrame()
+        sep.setFrameShape(QFrame.Shape.HLine)
+        sep.setStyleSheet('color: #E2E8F0;')
+        phase_outer.addWidget(sep)
+
+        phase_hdr = QLabel('階段性任務')
+        phase_hdr.setStyleSheet(
+            'font-weight: 600; font-size: 12px; color: #475569; padding-bottom: 2px;'
+        )
+        phase_outer.addWidget(phase_hdr)
+
+        self._phases_list = QVBoxLayout()
+        self._phases_list.setSpacing(2)
+        phase_outer.addLayout(self._phases_list)
+
+        # Inline add row
+        add_row = QWidget()
+        ar = QHBoxLayout(add_row)
+        ar.setContentsMargins(0, 0, 0, 0)
+        ar.setSpacing(6)
+        self._phase_input = QLineEdit()
+        self._phase_input.setPlaceholderText('新增階段…')
+        self._phase_input.setFixedHeight(28)
+        self._phase_input.returnPressed.connect(self._on_add_phase)
+        ar.addWidget(self._phase_input)
+        add_phase_btn = QPushButton('+')
+        add_phase_btn.setFixedSize(28, 28)
+        add_phase_btn.setProperty('class', 'secondary')
+        add_phase_btn.clicked.connect(self._on_add_phase)
+        ar.addWidget(add_phase_btn)
+        phase_outer.addWidget(add_row)
+
+        self._phase_section.hide()
+        layout.addWidget(self._phase_section)
+
         layout.addStretch()
         scroll.setWidget(content)
         outer.addWidget(scroll)
@@ -149,39 +194,6 @@ class RightPanel(QWidget):
 
         outer.addWidget(btn_bar)
 
-    # ── Time picker ─────────────────────────────────────────────────────────
-    def _open_time_picker(self) -> None:
-        from src.ui.components.time_picker_dialog import TimePickerDialog
-        h, m, pm = 9, 0, False
-        if self._time_str:
-            try:
-                parts = self._time_str.split(':')
-                h24 = int(parts[0])
-                m = int(parts[1])
-                pm = h24 >= 12
-                h = h24 % 12 or 12
-            except Exception:
-                pass
-        dlg = TimePickerDialog(hour=h, minute=m, is_pm=pm, parent=self)
-        if dlg.exec():
-            self._time_str = dlg.get_time_str()
-            self._apply_time_btn_selected()
-
-    def _apply_time_btn_selected(self) -> None:
-        self._time_btn.setText(self._time_str)
-        self._time_btn.setStyleSheet(
-            'background-color: #EEF2FF; color: #4F46E5; '
-            'border: 1.5px solid #4F46E5; border-radius: 6px; '
-            'padding: 7px 12px; font-weight: 600;'
-        )
-        self._clear_time_btn.show()
-
-    def _clear_time(self) -> None:
-        self._time_str = None
-        self._time_btn.setText('＋ 設定時間（可選）')
-        self._time_btn.setStyleSheet('')
-        self._clear_time_btn.hide()
-
     # ── Public API ───────────────────────────────────────────────────────────
     def show_empty(self) -> None:
         self._task = None
@@ -194,6 +206,8 @@ class RightPanel(QWidget):
         self._clear_time()
         self._save_btn.setEnabled(False)
         self._add_child_btn.hide()
+        self._phase_section.hide()
+        self._clear_phases_ui()
 
     def load_task(self, task: Task) -> None:
         self._task = task
@@ -219,6 +233,9 @@ class RightPanel(QWidget):
         self._save_btn.setEnabled(True)
         self._add_child_btn.setVisible(task.parent_id is None)
 
+        # Load phases
+        self._reload_phases()
+
     # ── Internal ─────────────────────────────────────────────────────────────
     def _clear_due_date(self) -> None:
         self._due_date.setDate(NO_DATE)
@@ -226,6 +243,85 @@ class RightPanel(QWidget):
     def _on_add_child(self) -> None:
         if self._task:
             self.add_child_requested.emit(self._task.id)
+
+    # ── Phase helpers ─────────────────────────────────────────────────────────
+    def _clear_phases_ui(self) -> None:
+        while self._phases_list.count():
+            item = self._phases_list.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+
+    def _reload_phases(self) -> None:
+        if not self._task:
+            return
+        self._clear_phases_ui()
+        phases = self._phase_repo.get_phases(self._task.id)
+        for phase in phases:
+            self._add_phase_row(phase)
+        self._phase_section.show()
+        self._phase_input.clear()
+
+    @staticmethod
+    def _phase_style(is_done: bool) -> str:
+        if is_done:
+            return 'text-decoration: line-through; color: #94A3B8;'
+        return 'color: #1E293B;'
+
+    def _add_phase_row(self, phase: TaskPhase) -> None:
+        row = QWidget()
+        rl = QHBoxLayout(row)
+        rl.setContentsMargins(0, 0, 0, 0)
+        rl.setSpacing(6)
+
+        cb = QCheckBox(phase.name)
+        cb.setChecked(phase.status == 'done')
+        cb.setStyleSheet(self._phase_style(phase.status == 'done'))
+
+        def _on_toggle(checked: bool, pid=phase.id, widget=cb) -> None:
+            new_status = 'done' if checked else 'pending'
+            try:
+                self._phase_repo.set_status(pid, new_status)
+                widget.setStyleSheet(self._phase_style(checked))
+            except Exception as e:
+                logger.error(f'Phase set_status failed: {e}')
+                widget.blockSignals(True)
+                try:
+                    widget.setChecked(not checked)
+                finally:
+                    widget.blockSignals(False)
+
+        cb.toggled.connect(_on_toggle)
+        rl.addWidget(cb, stretch=1)
+
+        del_btn = QPushButton('✕')
+        del_btn.setFixedSize(22, 22)
+        del_btn.setProperty('class', 'ghost')
+        del_btn.setToolTip('刪除階段')
+
+        def _on_delete(pid=phase.id, r=row) -> None:
+            try:
+                self._phase_repo.delete_phase(pid)
+                r.deleteLater()
+            except Exception as e:
+                logger.error(f'Phase delete_phase failed: {e}')
+
+        del_btn.clicked.connect(_on_delete)
+        rl.addWidget(del_btn)
+
+        self._phases_list.addWidget(row)
+
+    def _on_add_phase(self) -> None:
+        if not self._task:
+            return
+        name = self._phase_input.text().strip()
+        if not name:
+            return
+        try:
+            phase = self._phase_repo.add_phase(self._task.id, name)
+            self._add_phase_row(phase)
+            self._phase_input.clear()
+        except Exception as e:
+            logger.error(f'Phase add_phase failed: {e}')
 
     def _on_save(self) -> None:
         if not self._task:

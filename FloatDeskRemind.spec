@@ -15,7 +15,6 @@ a = Analysis(
     hiddenimports=[
         'win32api',
         'win32con',
-        'win32gui',
         'pywintypes',
         'winreg',
         'src.data.migrations.v001_initial',

@@ -177,6 +177,3 @@ class TaskService:
         self._repo.hard_delete(task_id)
         logger.debug(f'Deleted task {task_id} cascade={cascade}')
 
-    def soft_delete_task(self, task_id: str) -> None:
-        """Soft delete (move to deleted status)."""
-        self._repo.soft_delete(task_id)

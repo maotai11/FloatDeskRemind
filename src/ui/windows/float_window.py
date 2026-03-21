@@ -14,6 +14,7 @@ from PySide6.QtGui import QPainter, QColor, QPen, QBrush, QCursor
 from src.data.models import Task
 from src.core.utils import next_n_days
 from src.ui.components.task_list_widget import TaskListWidget
+from src.ui.utils import restore_window_geometry
 from src.core.config import AppConfig
 
 HEADER_HEIGHT = 42
@@ -25,7 +26,6 @@ class FloatWindow(QWidget):
     task_edit_requested = Signal(str)
     task_delete_requested = Signal(str)
     open_console_requested = Signal()
-    closed = Signal()
     geometry_changed = Signal(int, int, int, int)
 
     def __init__(self, config: AppConfig, parent=None):
@@ -159,11 +159,7 @@ class FloatWindow(QWidget):
     def _restore_geometry(self) -> None:
         w = self._config.float_width
         h = self._config.float_height
-        self.resize(w, h)
-        x, y = self._config.float_pos_x, self._config.float_pos_y
-        if any(s.availableGeometry().contains(QPoint(x, y)) for s in QApplication.screens()):
-            self.move(x, y)
-        else:
+        if not restore_window_geometry(self, self._config.float_pos_x, self._config.float_pos_y, w, h):
             screen = QApplication.primaryScreen()
             if screen:
                 rect = screen.availableGeometry()
