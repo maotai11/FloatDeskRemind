@@ -81,17 +81,14 @@ VERSION = 1
 
 
 def run(conn) -> None:
-    cursor = conn.cursor()
-    for statement in SQL.strip().split(';'):
-        s = statement.strip()
-        if s:
-            cursor.execute(s)
+    # executescript handles multiple DDL statements safely without string-splitting
+    conn.executescript(SQL)
 
+    cursor = conn.cursor()
     for key, value in DEFAULT_SETTINGS:
         cursor.execute(
             'INSERT OR IGNORE INTO settings(key, value) VALUES (?, ?)',
             (key, value)
         )
-
     cursor.execute('INSERT OR IGNORE INTO db_version(version) VALUES (?)', (VERSION,))
     conn.commit()

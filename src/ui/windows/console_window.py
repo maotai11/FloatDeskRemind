@@ -9,12 +9,13 @@ from __future__ import annotations
 from typing import Optional, List, Dict
 
 from PySide6.QtWidgets import (
-    QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, QSplitter
+    QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, QSplitter, QApplication
 )
-from PySide6.QtCore import Signal, Qt
+from PySide6.QtCore import Signal, Qt, QPoint
 from PySide6.QtGui import QShortcut, QKeySequence, QCloseEvent, QIcon
 
 from src.data.models import Task
+from src.core.config import AppConfig
 from src.core.paths import ASSETS_DIR
 from src.ui.components.console_left_panel import LeftPanel
 from src.ui.components.console_center_panel import CenterPanel
@@ -33,18 +34,19 @@ class ConsoleWindow(QMainWindow):
     task_complete_requested = Signal(str)      # task_id
     task_restore_requested = Signal(str)       # task_id
     search_requested = Signal(str)             # query
+    console_geometry_changed = Signal(int, int, int, int, int)  # x, y, w, h, splitter
     closed = Signal()
 
-    def __init__(self, parent=None):
+    def __init__(self, config: AppConfig, parent=None):
         super().__init__(parent)
+        self._config = config
         self.setWindowTitle('FloatDesk Remind — 主控台')
         self.setMinimumSize(900, 600)
-        self.resize(1100, 700)
-        # Dict for O(1) task lookup instead of repeated linear scans
         self._task_map: Dict[str, Task] = {}
         self._setup_icon()
         self._build_ui()
         self._setup_shortcuts()
+        self._restore_geometry()
 
     def _setup_icon(self) -> None:
         icon_path = ASSETS_DIR / 'icon.png'
@@ -95,7 +97,9 @@ class ConsoleWindow(QMainWindow):
         self._right.add_child_requested.connect(self._on_add_child_task)
         splitter.addWidget(self._right)
 
-        splitter.setSizes([600, 380])
+        self._splitter = splitter
+        splitter.setSizes([self._config.console_splitter,
+                           self._config.console_width - self._config.console_splitter])
         main_layout.addWidget(splitter)
 
         self._status = AppStatusBar()
@@ -106,7 +110,14 @@ class ConsoleWindow(QMainWindow):
         QShortcut(QKeySequence('Ctrl+F'), self).activated.connect(self._search_bar.set_focus)
         QShortcut(QKeySequence('Delete'), self).activated.connect(self._on_delete_selected)
         QShortcut(QKeySequence('Space'), self).activated.connect(self._on_space_toggle)
-        QShortcut(QKeySequence('Ctrl+A'), self).activated.connect(self._on_add_task)
+
+    def _restore_geometry(self) -> None:
+        w = self._config.console_width
+        h = self._config.console_height
+        self.resize(w, h)
+        x, y = self._config.console_x, self._config.console_y
+        if any(s.availableGeometry().contains(QPoint(x, y)) for s in QApplication.screens()):
+            self.move(x, y)
 
     # ------------------------------------------------------------------
     # Public API
@@ -210,9 +221,14 @@ class ConsoleWindow(QMainWindow):
             self._on_toggle_complete(task_id)
 
     # ------------------------------------------------------------------
-    # Close → hide (not quit)
+    # Close → hide (not quit), save geometry
     # ------------------------------------------------------------------
     def closeEvent(self, event: QCloseEvent) -> None:
         event.ignore()
+        geo = self.geometry()
+        splitter_center = self._splitter.sizes()[0]
+        self.console_geometry_changed.emit(
+            geo.x(), geo.y(), geo.width(), geo.height(), splitter_center
+        )
         self.hide()
         self.closed.emit()

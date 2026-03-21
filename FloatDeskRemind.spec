@@ -1,5 +1,6 @@
 # -*- mode: python ; coding: utf-8 -*-
 # FloatDesk Remind - PyInstaller spec file
+# onedir mode: no extraction delay on startup
 
 block_cipher = None
 
@@ -34,17 +35,12 @@ pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 exe = EXE(
     pyz,
     a.scripts,
-    a.binaries,
-    a.zipfiles,
-    a.datas,
     [],
     name='FloatDeskRemind',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=True,
-    upx_exclude=['Qt6*.dll', 'PySide6/*.pyd', 'python*.dll', 'vcruntime*.dll'],
-    runtime_tmpdir=None,
+    upx=False,
     console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,
@@ -52,5 +48,15 @@ exe = EXE(
     codesign_identity=None,
     entitlements_file=None,
     icon='assets/icon.ico',
-    onefile=True,
+)
+
+coll = COLLECT(
+    exe,
+    a.binaries,
+    a.zipfiles,
+    a.datas,
+    strip=False,
+    upx=False,
+    upx_exclude=[],
+    name='FloatDeskRemind',
 )

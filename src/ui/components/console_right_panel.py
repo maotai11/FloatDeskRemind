@@ -6,10 +6,10 @@ from typing import Optional
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QFormLayout, QLineEdit, QTextEdit,
-    QComboBox, QDateEdit, QTimeEdit, QHBoxLayout, QPushButton,
-    QLabel, QCheckBox, QScrollArea, QFrame, QSizePolicy
+    QComboBox, QDateEdit, QHBoxLayout, QPushButton,
+    QLabel, QCheckBox, QScrollArea, QFrame
 )
-from PySide6.QtCore import Signal, Qt, QDate, QTime
+from PySide6.QtCore import Signal, Qt, QDate
 
 from src.data.models import Task
 from src.ui.utils import set_combo_by_data, NO_DATE
@@ -23,6 +23,7 @@ class RightPanel(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._task: Optional[Task] = None
+        self._time_str: Optional[str] = None  # 'HH:MM' or None
         self._build_ui()
         self.show_empty()
 
@@ -90,11 +91,26 @@ class RightPanel(QWidget):
         self._clear_date_btn.clicked.connect(self._clear_due_date)
         form.addRow('', self._clear_date_btn)
 
-        # Due time
-        self._due_time = QTimeEdit()
-        self._due_time.setDisplayFormat('HH:mm')
-        self._due_time.setSpecialValueText('無時間')
-        form.addRow('期限時', self._due_time)
+        # Due time — clock picker button (avoids QTime(0,0) sentinel ambiguity)
+        time_row = QWidget()
+        tr = QHBoxLayout(time_row)
+        tr.setContentsMargins(0, 0, 0, 0)
+        tr.setSpacing(8)
+
+        self._time_btn = QPushButton('＋ 設定時間（可選）')
+        self._time_btn.setProperty('class', 'secondary')
+        self._time_btn.clicked.connect(self._open_time_picker)
+        tr.addWidget(self._time_btn)
+
+        self._clear_time_btn = QPushButton('✕')
+        self._clear_time_btn.setFixedWidth(32)
+        self._clear_time_btn.setToolTip('清除時間')
+        self._clear_time_btn.setProperty('class', 'ghost')
+        self._clear_time_btn.clicked.connect(self._clear_time)
+        self._clear_time_btn.hide()
+        tr.addWidget(self._clear_time_btn)
+
+        form.addRow('期限時', time_row)
 
         # Auto complete
         self._auto_complete = QCheckBox('子任務全完成時自動完成此任務')
@@ -133,6 +149,40 @@ class RightPanel(QWidget):
 
         outer.addWidget(btn_bar)
 
+    # ── Time picker ─────────────────────────────────────────────────────────
+    def _open_time_picker(self) -> None:
+        from src.ui.components.time_picker_dialog import TimePickerDialog
+        h, m, pm = 9, 0, False
+        if self._time_str:
+            try:
+                parts = self._time_str.split(':')
+                h24 = int(parts[0])
+                m = int(parts[1])
+                pm = h24 >= 12
+                h = h24 % 12 or 12
+            except Exception:
+                pass
+        dlg = TimePickerDialog(hour=h, minute=m, is_pm=pm, parent=self)
+        if dlg.exec():
+            self._time_str = dlg.get_time_str()
+            self._apply_time_btn_selected()
+
+    def _apply_time_btn_selected(self) -> None:
+        self._time_btn.setText(self._time_str)
+        self._time_btn.setStyleSheet(
+            'background-color: #EEF2FF; color: #4F46E5; '
+            'border: 1.5px solid #4F46E5; border-radius: 6px; '
+            'padding: 7px 12px; font-weight: 600;'
+        )
+        self._clear_time_btn.show()
+
+    def _clear_time(self) -> None:
+        self._time_str = None
+        self._time_btn.setText('＋ 設定時間（可選）')
+        self._time_btn.setStyleSheet('')
+        self._clear_time_btn.hide()
+
+    # ── Public API ───────────────────────────────────────────────────────────
     def show_empty(self) -> None:
         self._task = None
         self._header.setText('選擇任務以編輯')
@@ -141,6 +191,7 @@ class RightPanel(QWidget):
         set_combo_by_data(self._status, 'pending')
         set_combo_by_data(self._priority, 'none')
         self._due_date.setDate(NO_DATE)
+        self._clear_time()
         self._save_btn.setEnabled(False)
         self._add_child_btn.hide()
 
@@ -159,16 +210,16 @@ class RightPanel(QWidget):
             self._due_date.setDate(NO_DATE)
 
         if task.due_time:
-            t = QTime.fromString(task.due_time[:5], 'HH:mm')
-            self._due_time.setTime(t)
+            self._time_str = task.due_time[:5]
+            self._apply_time_btn_selected()
         else:
-            self._due_time.setTime(QTime(0, 0))
+            self._clear_time()
 
         self._auto_complete.setChecked(task.auto_complete_with_children)
         self._save_btn.setEnabled(True)
-        # Show add child only for top-level tasks
         self._add_child_btn.setVisible(task.parent_id is None)
 
+    # ── Internal ─────────────────────────────────────────────────────────────
     def _clear_due_date(self) -> None:
         self._due_date.setDate(NO_DATE)
 
@@ -190,15 +241,7 @@ class RightPanel(QWidget):
         self._task.auto_complete_with_children = self._auto_complete.isChecked()
 
         d = self._due_date.date()
-        if d.year() > NO_DATE.year():
-            self._task.due_date = d.toString('yyyy-MM-dd')
-        else:
-            self._task.due_date = None
-
-        t = self._due_time.time()
-        if t != QTime(0, 0):
-            self._task.due_time = t.toString('HH:mm')
-        else:
-            self._task.due_time = None
+        self._task.due_date = d.toString('yyyy-MM-dd') if d.year() > NO_DATE.year() else None
+        self._task.due_time = self._time_str  # None or 'HH:MM' — no sentinel ambiguity
 
         self.save_requested.emit(self._task)

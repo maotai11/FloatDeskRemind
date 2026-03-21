@@ -3,6 +3,9 @@ Windows Registry autostart management.
 Reads/writes HKCU\Software\Microsoft\Windows\CurrentVersion\Run
 """
 import sys
+import logging
+
+_log = logging.getLogger('floatdesk')
 
 try:
     import winreg
@@ -30,7 +33,8 @@ def is_autostart_enabled() -> bool:
         return True
     except FileNotFoundError:
         return False
-    except Exception:
+    except Exception as e:
+        _log.warning(f'autostart check failed: {e}')
         return False
 
 
@@ -48,5 +52,6 @@ def set_autostart(enabled: bool) -> bool:
                 pass
         winreg.CloseKey(key)
         return True
-    except Exception:
+    except Exception as e:
+        _log.warning(f'autostart set failed (enabled={enabled}): {e}')
         return False

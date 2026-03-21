@@ -21,6 +21,11 @@ DEFAULTS = {
     'float_pos_y': '',
     'float_width': '320',
     'float_height': '480',
+    'console_x': '',
+    'console_y': '',
+    'console_width': '1100',
+    'console_height': '700',
+    'console_splitter': '600',
 }
 
 
@@ -38,6 +43,11 @@ class AppConfig:
     float_pos_y: int = -1
     float_width: int = 320
     float_height: int = 480
+    console_x: int = -1
+    console_y: int = -1
+    console_width: int = 1100
+    console_height: int = 700
+    console_splitter: int = 600
 
     @classmethod
     def load(cls, repo: 'SettingsRepository') -> 'AppConfig':
@@ -56,6 +66,13 @@ class AppConfig:
         cfg.float_pos_y = int(py) if py else -1
         cfg.float_width = int(repo.get('float_width', DEFAULTS['float_width']))
         cfg.float_height = int(repo.get('float_height', DEFAULTS['float_height']))
+        cx = repo.get('console_x', DEFAULTS['console_x'])
+        cy = repo.get('console_y', DEFAULTS['console_y'])
+        cfg.console_x = int(cx) if cx else -1
+        cfg.console_y = int(cy) if cy else -1
+        cfg.console_width = int(repo.get('console_width', DEFAULTS['console_width']))
+        cfg.console_height = int(repo.get('console_height', DEFAULTS['console_height']))
+        cfg.console_splitter = int(repo.get('console_splitter', DEFAULTS['console_splitter']))
         return cfg
 
     def save(self, repo: 'SettingsRepository') -> None:
@@ -71,3 +88,8 @@ class AppConfig:
         repo.set('float_pos_y', str(self.float_pos_y))
         repo.set('float_width', str(self.float_width))
         repo.set('float_height', str(self.float_height))
+        repo.set('console_x', str(self.console_x))
+        repo.set('console_y', str(self.console_y))
+        repo.set('console_width', str(self.console_width))
+        repo.set('console_height', str(self.console_height))
+        repo.set('console_splitter', str(self.console_splitter))

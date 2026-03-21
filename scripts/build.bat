@@ -1,6 +1,7 @@
 @echo off
 :: ==========================================
 :: FloatDesk Remind - Build EXE
+:: onedir mode: output is dist\FloatDeskRemind\
 :: ==========================================
 cd /d "%~dp0.."
 
@@ -14,10 +15,10 @@ if %ERRORLEVEL% neq 0 (
     exit /b %ERRORLEVEL%
 )
 
-echo [2/3] Verifying output EXE...
-if not exist "dist\FloatDeskRemind.exe" (
+echo [2/3] Verifying output...
+if not exist "dist\FloatDeskRemind\FloatDeskRemind.exe" (
     echo.
-    echo ERROR: dist\FloatDeskRemind.exe not found after build.
+    echo ERROR: dist\FloatDeskRemind\FloatDeskRemind.exe not found after build.
     echo Build may have silently failed.
     pause
     exit /b 1
@@ -25,8 +26,10 @@ if not exist "dist\FloatDeskRemind.exe" (
 
 echo [3/3] Build successful.
 echo.
-echo EXE location : dist\FloatDeskRemind.exe
-for %%F in ("dist\FloatDeskRemind.exe") do echo EXE timestamp : %%~tF
-for %%F in ("dist\FloatDeskRemind.exe") do echo EXE size      : %%~zF bytes
+echo EXE location : dist\FloatDeskRemind\FloatDeskRemind.exe
+for %%F in ("dist\FloatDeskRemind\FloatDeskRemind.exe") do echo EXE timestamp : %%~tF
+for %%F in ("dist\FloatDeskRemind\FloatDeskRemind.exe") do echo EXE size      : %%~zF bytes
+echo.
+echo To distribute: zip the entire dist\FloatDeskRemind\ folder.
 echo.
 pause

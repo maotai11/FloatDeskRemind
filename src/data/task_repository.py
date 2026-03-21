@@ -133,14 +133,16 @@ class TaskRepository:
         return task
 
     def bulk_update_status(self, task_ids: List[str], status: str) -> None:
+        if not task_ids:
+            return
         now = _now_iso()
         completed_at = now if status == 'done' else None
+        placeholders = ','.join('?' * len(task_ids))
         with self._conn() as conn:
-            for tid in task_ids:
-                conn.execute(
-                    'UPDATE tasks SET status=?, completed_at=?, updated_at=? WHERE id=?',
-                    (status, completed_at, now, tid)
-                )
+            conn.execute(
+                f'UPDATE tasks SET status=?, completed_at=?, updated_at=? WHERE id IN ({placeholders})',
+                [status, completed_at, now, *task_ids]
+            )
             conn.commit()
 
     # ------------------------------------------------------------------

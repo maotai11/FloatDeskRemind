@@ -4,11 +4,11 @@ Owns repositories, services, and windows.
 Signal routing: UI events → Service → Repository → DB → refresh signals → UI
 """
 from __future__ import annotations
-import shutil
+import sqlite3
 from datetime import date
 from typing import List, Optional
 
-from PySide6.QtCore import QObject, Signal
+from PySide6.QtCore import QObject, Signal, QTimer
 from PySide6.QtWidgets import QApplication
 
 from src.core.config import AppConfig
@@ -50,6 +50,12 @@ class AppController(QObject):
 
         self.task_changed.connect(self._refresh_all)
 
+        # Debounce timer: writes geometry to DB 800ms after the last move/resize
+        self._geo_save_timer = QTimer()
+        self._geo_save_timer.setSingleShot(True)
+        self._geo_save_timer.setInterval(800)
+        self._geo_save_timer.timeout.connect(self._save_config)
+
     def start(self) -> None:
         """Initialize and show the app."""
         self._apply_font_size()
@@ -85,13 +91,14 @@ class AppController(QObject):
         self._float_window.geometry_changed.connect(self._on_float_geometry_changed)
 
     def _setup_console_window(self) -> None:
-        self._console_window = ConsoleWindow()
+        self._console_window = ConsoleWindow(self._config)
         self._console_window.task_add_requested.connect(self._on_add_task)
         self._console_window.task_update_requested.connect(self._on_update_task)
         self._console_window.task_delete_requested.connect(self._on_delete_task)
         self._console_window.task_complete_requested.connect(self._on_complete_task)
         self._console_window.task_restore_requested.connect(self._on_restore_task)
         self._console_window.search_requested.connect(self._on_search)
+        self._console_window.console_geometry_changed.connect(self._on_console_geometry_changed)
 
     # ------------------------------------------------------------------
     # Window management
@@ -209,6 +216,14 @@ class AppController(QObject):
         self._config.float_pos_y = y
         self._config.float_width = w
         self._config.float_height = h
+        self._geo_save_timer.start()  # debounced write — fires 800ms after last move
+
+    def _on_console_geometry_changed(self, x: int, y: int, w: int, h: int, splitter: int) -> None:
+        self._config.console_x = x
+        self._config.console_y = y
+        self._config.console_width = w
+        self._config.console_height = h
+        self._config.console_splitter = splitter
 
     # ------------------------------------------------------------------
     # Settings
@@ -254,7 +269,12 @@ class AppController(QObject):
             backup_dir.mkdir(exist_ok=True)
             dest = backup_dir / f'floatdesk_{stamp}.db'
             if not dest.exists():
-                shutil.copy2(DB_PATH, dest)
+                # Use sqlite3 online backup API — WAL-safe, captures committed state
+                src = sqlite3.connect(str(DB_PATH))
+                dst = sqlite3.connect(str(dest))
+                src.backup(dst)
+                src.close()
+                dst.close()
                 logger.info(f'DB backed up to {dest}')
                 backups = sorted(backup_dir.glob('floatdesk_*.db'))
                 for old in backups[:-7]:

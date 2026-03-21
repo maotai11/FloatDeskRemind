@@ -33,11 +33,10 @@ def setup_logger(name: str = 'floatdesk') -> logging.Logger:
         fh.setFormatter(formatter)
         logger.addHandler(fh)
     except Exception as e:
-        # Don't crash the app if the log file can't be created
         logger.addHandler(logging.NullHandler())
-        # stderr is available in dev mode even without a file handler
         import sys
-        print(f'[floatdesk] WARNING: could not set up file logger: {e}', file=sys.stderr)
+        if sys.stderr is not None:
+            print(f'[floatdesk] WARNING: could not set up file logger: {e}', file=sys.stderr)
 
     # Console handler — only attach when stderr exists (windowed EXE has no console)
     import sys as _sys
