@@ -256,8 +256,8 @@ class AppController(QObject):
             if not dest.exists():
                 shutil.copy2(DB_PATH, dest)
                 logger.info(f'DB backed up to {dest}')
-            backups = sorted(backup_dir.glob('floatdesk_*.db'))
-            for old in backups[:-7]:
-                old.unlink(missing_ok=True)
-        except Exception as e:
+                backups = sorted(backup_dir.glob('floatdesk_*.db'))
+                for old in backups[:-7]:
+                    old.unlink(missing_ok=True)
+        except OSError as e:
             logger.warning(f'Backup failed (non-fatal): {e}')
