@@ -79,7 +79,7 @@ class TaskRepository:
         placeholders = ','.join('?' * len(dates))
         with self._conn() as conn:
             rows = conn.execute(
-                f"SELECT * FROM tasks WHERE due_date IN ({placeholders}) "
+                f"SELECT * FROM tasks WHERE due_date IN ({placeholders}) "  # nosec B608 — placeholders contains only '?' chars; dates are parameterized
                 f"AND status NOT IN ('deleted','archived') "
                 f"ORDER BY sort_order",
                 dates
@@ -140,7 +140,7 @@ class TaskRepository:
         placeholders = ','.join('?' * len(task_ids))
         with self._conn() as conn:
             conn.execute(
-                f'UPDATE tasks SET status=?, completed_at=?, updated_at=? WHERE id IN ({placeholders})',
+                f'UPDATE tasks SET status=?, completed_at=?, updated_at=? WHERE id IN ({placeholders})',  # nosec B608 — placeholders contains only '?' chars; task_ids are parameterized
                 [status, completed_at, now, *task_ids]
             )
             conn.commit()

@@ -21,7 +21,7 @@ class TimePickerMixin:
                 pm = h24 >= 12
                 h = h24 % 12 or 12
             except Exception:
-                pass
+                pass  # nosec B110 — malformed stored time string; fall back to defaults (9:00 AM)
         dlg = TimePickerDialog(hour=h, minute=m, is_pm=pm, parent=self)
         if dlg.exec():
             self._time_str = dlg.get_time_str()

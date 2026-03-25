@@ -40,5 +40,5 @@ def release_lock() -> None:
         try:
             win32api.CloseHandle(_mutex_handle)
         except Exception:
-            pass
+            pass  # nosec B110 — cleanup path; handle close failure is unrecoverable
         _mutex_handle = None

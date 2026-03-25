@@ -51,7 +51,7 @@ def main() -> int:
                 f'請查閱記錄檔以取得詳細資訊。'
             )
         except Exception:
-            pass
+            pass  # nosec B110 — last-resort crash dialog; if Qt itself fails here, nothing more can be done
         return 1
     finally:
         release_lock()
