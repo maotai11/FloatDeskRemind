@@ -1,6 +1,12 @@
 """
 Database connection management with WAL mode and migration runner.
 Each call to get_connection() returns a fresh thread-safe connection.
+
+transaction() provides a reusable Unit-of-Work context:
+  - isolation_level=None (autocommit) so BEGIN/COMMIT/ROLLBACK are fully explicit
+  - Pragmas applied BEFORE BEGIN (PRAGMA journal_mode cannot run inside a transaction)
+  - On exception: ROLLBACK then re-raise, guaranteeing atomicity
+  - Callers must NOT call conn.commit() or conn.rollback() inside the block
 """
 import sqlite3
 from contextlib import contextmanager
@@ -12,6 +18,9 @@ from src.core.logger import logger
 
 
 def _apply_pragmas(conn: sqlite3.Connection) -> None:
+    """Apply WAL + FK + synchronous pragmas and set row_factory.
+    Must be called BEFORE any BEGIN — some pragmas are disallowed inside transactions.
+    """
     conn.execute('PRAGMA journal_mode=WAL')
     conn.execute('PRAGMA foreign_keys=ON')
     conn.execute('PRAGMA synchronous=NORMAL')
@@ -20,12 +29,51 @@ def _apply_pragmas(conn: sqlite3.Connection) -> None:
 
 @contextmanager
 def get_connection(db_path: Path = None) -> Generator[sqlite3.Connection, None, None]:
-    """Context manager: yields a fresh SQLite connection, closes on exit."""
+    """Yields a fresh auto-commit SQLite connection. Closes on exit.
+    Use for single-statement operations where atomicity across calls is not required.
+    """
     path = db_path or DB_PATH
     conn = sqlite3.connect(str(path))
     _apply_pragmas(conn)
     try:
         yield conn
+    finally:
+        conn.close()
+
+
+@contextmanager
+def transaction(db_path: Path = None) -> Generator[sqlite3.Connection, None, None]:
+    """Unit-of-Work context manager.
+
+    Yields a connection inside an explicit BEGIN / COMMIT block.
+    All operations on the yielded connection are part of one atomic transaction.
+
+    On clean exit  → COMMIT
+    On exception   → ROLLBACK, then re-raise
+
+    Usage::
+        with transaction(db_path) as conn:
+            repo.update(task, conn=conn)
+            repo.bulk_update_status(ids, 'done', conn=conn)
+        # COMMIT happens here automatically
+
+    Caller must NOT call conn.commit() or conn.rollback() inside the block.
+    """
+    path = db_path or DB_PATH
+    # isolation_level=None = Python's sqlite3 will NOT auto-issue BEGIN.
+    # We control the transaction lifecycle entirely.
+    conn = sqlite3.connect(str(path), isolation_level=None)
+    _apply_pragmas(conn)
+    conn.execute('BEGIN')
+    try:
+        yield conn
+        conn.execute('COMMIT')
+    except Exception:
+        try:
+            conn.execute('ROLLBACK')
+        except Exception:
+            pass  # nosec B110 — ROLLBACK on already-failed connection; best-effort
+        raise
     finally:
         conn.close()
 

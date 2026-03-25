@@ -1,7 +1,13 @@
 """
 TaskRepository: CRUD + date-range queries + batch updates.
+
+All write methods accept an optional ``conn`` parameter.
+- conn=None  (default): opens its own connection and commits immediately.
+- conn=<Connection>: uses the caller-supplied connection without committing.
+  The caller is responsible for COMMIT / ROLLBACK (typically via transaction()).
 """
 from __future__ import annotations
+import sqlite3
 import uuid
 from pathlib import Path
 from typing import List, Optional
@@ -22,36 +28,38 @@ class TaskRepository:
     # ------------------------------------------------------------------
     # Create
     # ------------------------------------------------------------------
-    def create(self, task: Task) -> Task:
+    def create(self, task: Task, conn: Optional[sqlite3.Connection] = None) -> Task:
         now = _now_iso()
         if not task.id:
             task.id = str(uuid.uuid4())
         task.created_at = now
         task.updated_at = now
 
-        with self._conn() as conn:
-            conn.execute(
-                '''INSERT INTO tasks
+        sql = '''INSERT INTO tasks
                    (id, title, description, status, priority, parent_id,
                     sort_order, start_date, due_date, due_time,
                     is_countdown, countdown_target, is_recurring,
                     recurrence_rule, estimated_minutes,
                     auto_complete_with_children, completed_at, deleted_at,
                     created_at, updated_at)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
-                (
-                    task.id, task.title, task.description, task.status,
-                    task.priority, task.parent_id, task.sort_order,
-                    task.start_date, task.due_date, task.due_time,
-                    int(task.is_countdown), task.countdown_target,
-                    int(task.is_recurring), task.recurrence_rule,
-                    task.estimated_minutes,
-                    int(task.auto_complete_with_children),
-                    task.completed_at, task.deleted_at,
-                    task.created_at, task.updated_at,
-                )
-            )
-            conn.commit()
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'''
+        params = (
+            task.id, task.title, task.description, task.status,
+            task.priority, task.parent_id, task.sort_order,
+            task.start_date, task.due_date, task.due_time,
+            int(task.is_countdown), task.countdown_target,
+            int(task.is_recurring), task.recurrence_rule,
+            task.estimated_minutes,
+            int(task.auto_complete_with_children),
+            task.completed_at, task.deleted_at,
+            task.created_at, task.updated_at,
+        )
+        if conn is not None:
+            conn.execute(sql, params)
+        else:
+            with self._conn() as c:
+                c.execute(sql, params)
+                c.commit()
         return task
 
     # ------------------------------------------------------------------
@@ -107,64 +115,91 @@ class TaskRepository:
     # ------------------------------------------------------------------
     # Update
     # ------------------------------------------------------------------
-    def update(self, task: Task) -> Task:
+    def update(self, task: Task, conn: Optional[sqlite3.Connection] = None) -> Task:
         task.updated_at = _now_iso()
-        with self._conn() as conn:
-            conn.execute(
-                '''UPDATE tasks SET
+        sql = '''UPDATE tasks SET
                    title=?, description=?, status=?, priority=?,
                    parent_id=?, sort_order=?, start_date=?, due_date=?,
                    due_time=?, is_countdown=?, countdown_target=?,
                    is_recurring=?, recurrence_rule=?, estimated_minutes=?,
                    auto_complete_with_children=?, completed_at=?,
                    deleted_at=?, updated_at=?
-                   WHERE id=?''',
-                (
-                    task.title, task.description, task.status, task.priority,
-                    task.parent_id, task.sort_order, task.start_date,
-                    task.due_date, task.due_time, int(task.is_countdown),
-                    task.countdown_target, int(task.is_recurring),
-                    task.recurrence_rule, task.estimated_minutes,
-                    int(task.auto_complete_with_children), task.completed_at,
-                    task.deleted_at, task.updated_at, task.id,
-                )
-            )
-            conn.commit()
+                   WHERE id=?'''
+        params = (
+            task.title, task.description, task.status, task.priority,
+            task.parent_id, task.sort_order, task.start_date,
+            task.due_date, task.due_time, int(task.is_countdown),
+            task.countdown_target, int(task.is_recurring),
+            task.recurrence_rule, task.estimated_minutes,
+            int(task.auto_complete_with_children), task.completed_at,
+            task.deleted_at, task.updated_at, task.id,
+        )
+        if conn is not None:
+            conn.execute(sql, params)
+        else:
+            with self._conn() as c:
+                c.execute(sql, params)
+                c.commit()
         return task
 
-    def bulk_update_status(self, task_ids: List[str], status: str) -> None:
+    def bulk_update_status(
+        self,
+        task_ids: List[str],
+        status: str,
+        conn: Optional[sqlite3.Connection] = None,
+    ) -> None:
         if not task_ids:
             return
         now = _now_iso()
         completed_at = now if status == 'done' else None
         placeholders = ','.join('?' * len(task_ids))
-        with self._conn() as conn:
-            conn.execute(
-                f'UPDATE tasks SET status=?, completed_at=?, updated_at=? WHERE id IN ({placeholders})',  # nosec B608 — placeholders contains only '?' chars; task_ids are parameterized
-                [status, completed_at, now, *task_ids]
-            )
-            conn.commit()
+        sql = (
+            f'UPDATE tasks SET status=?, completed_at=?, updated_at=?'  # nosec B608
+            f' WHERE id IN ({placeholders})'                             # placeholders = '?,?,...' only
+        )
+        args = [status, completed_at, now, *task_ids]
+        if conn is not None:
+            conn.execute(sql, args)
+        else:
+            with self._conn() as c:
+                c.execute(sql, args)
+                c.commit()
 
     # ------------------------------------------------------------------
     # Delete
     # ------------------------------------------------------------------
-    def hard_delete(self, task_id: str) -> None:
-        with self._conn() as conn:
+    def hard_delete(self, task_id: str, conn: Optional[sqlite3.Connection] = None) -> None:
+        if conn is not None:
             conn.execute('DELETE FROM tasks WHERE id=?', (task_id,))
-            conn.commit()
+        else:
+            with self._conn() as c:
+                c.execute('DELETE FROM tasks WHERE id=?', (task_id,))
+                c.commit()
 
-    def bulk_hard_delete_children(self, parent_id: str) -> None:
+    def bulk_hard_delete_children(
+        self,
+        parent_id: str,
+        conn: Optional[sqlite3.Connection] = None,
+    ) -> None:
         """Delete all children of parent_id in a single SQL statement."""
-        with self._conn() as conn:
+        if conn is not None:
             conn.execute('DELETE FROM tasks WHERE parent_id=?', (parent_id,))
-            conn.commit()
+        else:
+            with self._conn() as c:
+                c.execute('DELETE FROM tasks WHERE parent_id=?', (parent_id,))
+                c.commit()
 
-    def unparent_children(self, parent_id: str) -> None:
+    def unparent_children(
+        self,
+        parent_id: str,
+        conn: Optional[sqlite3.Connection] = None,
+    ) -> None:
         """Set parent_id=NULL for all children of the given task."""
         now = _now_iso()
-        with self._conn() as conn:
-            conn.execute(
-                'UPDATE tasks SET parent_id=NULL, updated_at=? WHERE parent_id=?',
-                (now, parent_id)
-            )
-            conn.commit()
+        sql = 'UPDATE tasks SET parent_id=NULL, updated_at=? WHERE parent_id=?'
+        if conn is not None:
+            conn.execute(sql, (now, parent_id))
+        else:
+            with self._conn() as c:
+                c.execute(sql, (now, parent_id))
+                c.commit()

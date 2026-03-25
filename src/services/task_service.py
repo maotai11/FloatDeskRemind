@@ -15,6 +15,7 @@ from typing import List, Optional, Tuple
 
 from src.data.models import Task
 from src.data.task_repository import TaskRepository
+from src.data.database import transaction
 from src.core.logger import logger
 from src.core.utils import now_iso as _now_iso
 
@@ -131,19 +132,22 @@ class TaskService:
         return CompleteResult.OK
 
     def complete_parent_with_children(self, task_id: str, include_children: bool) -> None:
-        """Called after user confirms scenario B dialog."""
+        """Called after user confirms scenario B dialog.
+        bulk_update_status + update are wrapped in a single transaction
+        so a crash between them cannot leave children done but parent pending.
+        """
         task = self._repo.get_by_id(task_id)
         if not task:
             return
-        if include_children:
-            children = self._repo.get_children(task_id)
-            pending = [c.id for c in children if c.status != 'done']
-            if pending:
-                self._repo.bulk_update_status(pending, 'done')
-
         task.status = 'done'
         task.completed_at = _now_iso()
-        self._repo.update(task)
+        with transaction(self._repo._db) as conn:
+            if include_children:
+                children = self._repo.get_children(task_id)
+                pending = [c.id for c in children if c.status != 'done']
+                if pending:
+                    self._repo.bulk_update_status(pending, 'done', conn=conn)
+            self._repo.update(task, conn=conn)
 
     # ------------------------------------------------------------------
     # Scenario D: restore
@@ -166,14 +170,18 @@ class TaskService:
 
     def delete_task(self, task_id: str, cascade: bool) -> None:
         """
-        cascade=True: delete parent + all children
-        cascade=False: delete parent, unparent children
-        """
-        if cascade:
-            self._repo.bulk_hard_delete_children(task_id)
-        else:
-            self._repo.unparent_children(task_id)
+        cascade=True: delete parent + all children atomically
+        cascade=False: unparent children + delete parent atomically
 
-        self._repo.hard_delete(task_id)
+        Both steps are wrapped in a single transaction so a crash between
+        them cannot leave children deleted while the parent still exists,
+        or a parent deleted while children are still parented to it.
+        """
+        with transaction(self._repo._db) as conn:
+            if cascade:
+                self._repo.bulk_hard_delete_children(task_id, conn=conn)
+            else:
+                self._repo.unparent_children(task_id, conn=conn)
+            self._repo.hard_delete(task_id, conn=conn)
         logger.debug(f'Deleted task {task_id} cascade={cascade}')
 
