@@ -3,6 +3,7 @@ FloatWindow: always-on-top frameless floating window.
 Indigo header, rounded corners, draggable, transparent background.
 """
 from __future__ import annotations
+from datetime import date
 from typing import List, Dict
 
 from PySide6.QtWidgets import (
@@ -166,11 +167,17 @@ class FloatWindow(QWidget):
                 self.move(rect.right() - w - 20, rect.top() + 40)
 
     def refresh(self, tasks: List[Task]) -> None:
+        today_str = date.today().isoformat()
         dates = next_n_days(self._config.display_days)
         tasks_by_date: Dict[str, List[Task]] = {d: [] for d in dates}
+        overdue: List[Task] = []
         for task in tasks:
-            if task.due_date in tasks_by_date:
+            if task.due_date and task.due_date < today_str:
+                overdue.append(task)
+            elif task.due_date in tasks_by_date:
                 tasks_by_date[task.due_date].append(task)
+        if overdue:
+            tasks_by_date['__overdue__'] = overdue
         total = sum(len(v) for v in tasks_by_date.values())
         if total > 0:
             self._count_badge.setText(str(total))

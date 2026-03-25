@@ -69,15 +69,32 @@ class TaskListWidget(QWidget):
 
         today = date.today()
         today_str = today.isoformat()
-        dates = sorted(tasks_by_date.keys())
 
+        # --- 逾期區塊（優先顯示）---
+        overdue = tasks_by_date.get('__overdue__', [])
+        if overdue:
+            header = QLabel('逾期')
+            header.setStyleSheet(
+                'color: #EF4444; font-weight: 700;'
+                'font-size: 11px; padding: 10px 4px 4px 4px; background: transparent;'
+            )
+            self._content_layout.addWidget(header)
+            for task in sort_tasks(overdue):
+                item = TaskItemWidget(task, reference_date_str=today_str)
+                item.completed.connect(self.task_completed)
+                item.edit_requested.connect(self.task_edit_requested)
+                item.delete_requested.connect(self.task_delete_requested)
+                self._content_layout.addWidget(item)
+                self._items[task.id] = item
+
+        # --- 今天 / 明天 / 未來日期 ---
+        dates = sorted(k for k in tasks_by_date if k != '__overdue__')
         for d in dates:
             tasks = tasks_by_date.get(d, [])
             sorted_tasks = sort_tasks(tasks)
             is_today = (d == today_str)
             day_lbl = _day_label(d, today)
 
-            # Section header
             header = QLabel(day_lbl)
             header.setStyleSheet(
                 f'color: {"#4F46E5" if is_today else "#64748B"};'

@@ -136,8 +136,13 @@ class AppController(QObject):
     # ------------------------------------------------------------------
     def _refresh_all(self) -> None:
         tasks = self._task_service.get_all_active()
+        today_str = date.today().isoformat()
         float_dates = set(next_n_days(self._config.display_days))
-        float_tasks = [t for t in tasks if t.due_date in float_dates and t.status == 'pending']
+        float_tasks = [
+            t for t in tasks
+            if t.status == 'pending' and t.due_date
+            and (t.due_date < today_str or t.due_date in float_dates)
+        ]
 
         if self._float_window:
             self._float_window.refresh(float_tasks)
