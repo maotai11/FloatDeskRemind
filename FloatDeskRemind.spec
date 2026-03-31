@@ -1,6 +1,12 @@
 # -*- mode: python ; coding: utf-8 -*-
 # FloatDesk Remind - PyInstaller spec file
 # onedir mode: no extraction delay on startup
+#
+# Migration modules are collected automatically via collect_submodules().
+# When adding a new migration file (src/data/migrations/vNNN_*.py),
+# no changes to this spec file are required.
+
+from PyInstaller.utils.hooks import collect_submodules
 
 block_cipher = None
 
@@ -17,7 +23,7 @@ a = Analysis(
         'win32con',
         'pywintypes',
         'winreg',
-        'src.data.migrations.v001_initial',
+        *collect_submodules('src.data.migrations'),
     ],
     hookspath=[],
     hooksconfig={},

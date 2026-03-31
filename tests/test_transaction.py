@@ -246,8 +246,8 @@ class TestRepositoryConnParameter:
 
 class TestServiceAtomicity:
     def test_delete_cascade_atomic(self, tmp_db, task_repo, monkeypatch):
-        """If hard_delete raises after bulk_hard_delete_children, the entire operation
-        rolls back — children must survive (no orphan records, no partial state)."""
+        """If soft_delete raises after bulk_soft_delete_children, the entire operation
+        rolls back — children must remain pending (no partial state)."""
         parent = _make_task(title='Parent')
         task_repo.create(parent)
         child1 = _make_task(title='Child 1', parent_id=parent.id)
@@ -255,45 +255,44 @@ class TestServiceAtomicity:
         task_repo.create(child1)
         task_repo.create(child2)
 
-        original_hard_delete = task_repo.hard_delete
-
-        def _failing_hard_delete(task_id, conn=None):
+        def _failing_soft_delete(task_id, conn=None):
             raise RuntimeError('disk full — simulated failure')
 
-        monkeypatch.setattr(task_repo, 'hard_delete', _failing_hard_delete)
+        monkeypatch.setattr(task_repo, 'soft_delete', _failing_soft_delete)
 
         task_service = TaskService(task_repo)
         with pytest.raises(RuntimeError, match='disk full'):
             task_service.delete_task(parent.id, cascade=True)
 
-        # Rollback: both parent and children must still exist
-        assert task_repo.get_by_id(parent.id) is not None
-        assert task_repo.get_by_id(child1.id) is not None
-        assert task_repo.get_by_id(child2.id) is not None
+        # Rollback: parent and children must still be pending
+        assert task_repo.get_by_id(parent.id).status == 'pending'
+        assert task_repo.get_by_id(child1.id).status == 'pending'
+        assert task_repo.get_by_id(child2.id).status == 'pending'
 
     def test_delete_unparent_atomic(self, tmp_db, task_repo, monkeypatch):
-        """If hard_delete raises after unparent_children, children remain parented."""
+        """If soft_delete raises after unparent_children, children remain parented."""
         parent = _make_task(title='Parent')
         task_repo.create(parent)
         child = _make_task(title='Child', parent_id=parent.id)
         task_repo.create(child)
 
-        def _failing_hard_delete(task_id, conn=None):
+        def _failing_soft_delete(task_id, conn=None):
             raise RuntimeError('simulated failure')
 
-        monkeypatch.setattr(task_repo, 'hard_delete', _failing_hard_delete)
+        monkeypatch.setattr(task_repo, 'soft_delete', _failing_soft_delete)
 
         task_service = TaskService(task_repo)
         with pytest.raises(RuntimeError):
             task_service.delete_task(parent.id, cascade=False)
 
-        # Rollback: child must still be parented
+        # Rollback: child must still be parented and parent still pending
         fetched = task_repo.get_by_id(child.id)
         assert fetched is not None
         assert fetched.parent_id == parent.id
+        assert task_repo.get_by_id(parent.id).status == 'pending'
 
     def test_delete_cascade_success(self, task_service, task_repo):
-        """Normal cascade delete must remove parent and all children."""
+        """Normal cascade soft-delete must mark parent and all children as deleted."""
         parent = _make_task(title='Parent')
         task_repo.create(parent)
         children = [_make_task(parent_id=parent.id) for _ in range(3)]
@@ -302,12 +301,12 @@ class TestServiceAtomicity:
 
         task_service.delete_task(parent.id, cascade=True)
 
-        assert task_repo.get_by_id(parent.id) is None
+        assert task_repo.get_by_id(parent.id).status == 'deleted'
         for c in children:
-            assert task_repo.get_by_id(c.id) is None
+            assert task_repo.get_by_id(c.id).status == 'deleted'
 
     def test_delete_unparent_success(self, task_service, task_repo):
-        """Normal unparent delete must remove parent and clear children's parent_id."""
+        """Normal unparent soft-delete must soft-delete parent and clear children's parent_id."""
         parent = _make_task(title='Parent')
         task_repo.create(parent)
         child = _make_task(parent_id=parent.id)
@@ -315,10 +314,11 @@ class TestServiceAtomicity:
 
         task_service.delete_task(parent.id, cascade=False)
 
-        assert task_repo.get_by_id(parent.id) is None
+        assert task_repo.get_by_id(parent.id).status == 'deleted'
         fetched = task_repo.get_by_id(child.id)
         assert fetched is not None
         assert fetched.parent_id is None
+        assert fetched.status == 'pending'
 
     def test_complete_parent_with_children_atomic(self, tmp_db, task_repo, monkeypatch):
         """If update(parent) raises after bulk_update_status, children must remain pending."""

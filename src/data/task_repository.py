@@ -72,8 +72,8 @@ class TaskRepository:
             ).fetchone()
         return Task.from_row(row) if row else None
 
-    def get_all_active(self) -> List[Task]:
-        """Return all tasks that are not deleted."""
+    def get_all_non_deleted(self) -> List[Task]:
+        """Return all tasks that are not deleted (includes pending, done, archived)."""
         with self._conn() as conn:
             rows = conn.execute(
                 "SELECT * FROM tasks WHERE status != 'deleted' ORDER BY sort_order"
@@ -81,16 +81,35 @@ class TaskRepository:
         return [Task.from_row(r) for r in rows]
 
     def get_by_due_dates(self, dates: List[str]) -> List[Task]:
-        """Return active tasks whose due_date is in the given list."""
+        """Return non-deleted tasks whose due_date is in the given list."""
         if not dates:
             return []
         placeholders = ','.join('?' * len(dates))
         with self._conn() as conn:
             rows = conn.execute(
                 f"SELECT * FROM tasks WHERE due_date IN ({placeholders}) "  # nosec B608 — placeholders contains only '?' chars; dates are parameterized
-                f"AND status NOT IN ('deleted','archived') "
+                f"AND status != 'deleted' "
                 f"ORDER BY sort_order",
                 dates
+            ).fetchall()
+        return [Task.from_row(r) for r in rows]
+
+    def get_pending_due_in_range(self, from_dt: str, to_dt: str) -> List[Task]:
+        """Return pending tasks whose due_date+due_time falls in [from_dt, to_dt].
+
+        Both arguments must be ISO-format strings without seconds: 'YYYY-MM-DDTHH:MM'.
+        Only tasks that have both due_date and due_time set are returned.
+        """
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM tasks "
+                "WHERE status = 'pending' "
+                "  AND due_date IS NOT NULL "
+                "  AND due_time IS NOT NULL "
+                "  AND (due_date || 'T' || due_time) >= ? "
+                "  AND (due_date || 'T' || due_time) <= ? "
+                "ORDER BY due_date, due_time",
+                (from_dt, to_dt),
             ).fetchall()
         return [Task.from_row(r) for r in rows]
 
@@ -163,6 +182,64 @@ class TaskRepository:
         else:
             with self._conn() as c:
                 c.execute(sql, args)
+                c.commit()
+
+    # ------------------------------------------------------------------
+    # Soft Delete + Recycle Bin
+    # ------------------------------------------------------------------
+    def soft_delete(self, task_id: str, conn: Optional[sqlite3.Connection] = None) -> None:
+        """Mark task as deleted. Does NOT physically remove the row."""
+        now = _now_iso()
+        sql = "UPDATE tasks SET status='deleted', deleted_at=?, updated_at=? WHERE id=?"
+        if conn is not None:
+            conn.execute(sql, (now, now, task_id))
+        else:
+            with self._conn() as c:
+                c.execute(sql, (now, now, task_id))
+                c.commit()
+
+    def bulk_soft_delete_children(
+        self,
+        parent_id: str,
+        conn: Optional[sqlite3.Connection] = None,
+    ) -> None:
+        """Soft-delete all children of parent_id in a single SQL statement."""
+        now = _now_iso()
+        sql = "UPDATE tasks SET status='deleted', deleted_at=?, updated_at=? WHERE parent_id=?"
+        if conn is not None:
+            conn.execute(sql, (now, now, parent_id))
+        else:
+            with self._conn() as c:
+                c.execute(sql, (now, now, parent_id))
+                c.commit()
+
+    def get_deleted(self) -> List[Task]:
+        """Return all soft-deleted tasks, newest-deleted first."""
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM tasks WHERE status='deleted' ORDER BY deleted_at DESC"
+            ).fetchall()
+        return [Task.from_row(r) for r in rows]
+
+    def restore_from_trash(self, task_id: str, conn: Optional[sqlite3.Connection] = None) -> None:
+        """Restore a single deleted task to pending.
+        Guard: WHERE status='deleted' prevents accidentally restoring done tasks."""
+        now = _now_iso()
+        sql = "UPDATE tasks SET status='pending', deleted_at=NULL, updated_at=? WHERE id=? AND status='deleted'"
+        if conn is not None:
+            conn.execute(sql, (now, task_id))
+        else:
+            with self._conn() as c:
+                c.execute(sql, (now, task_id))
+                c.commit()
+
+    def permanently_delete(self, task_id: str, conn: Optional[sqlite3.Connection] = None) -> None:
+        """Physical DELETE — only for confirmed trash emptying. Irreversible."""
+        if conn is not None:
+            conn.execute('DELETE FROM tasks WHERE id=?', (task_id,))
+        else:
+            with self._conn() as c:
+                c.execute('DELETE FROM tasks WHERE id=?', (task_id,))
                 c.commit()
 
     # ------------------------------------------------------------------

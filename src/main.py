@@ -1,6 +1,15 @@
 """
 FloatDesk Remind — Entry Point
 Single-instance lock → QApplication → AppController
+
+Startup sequence (order is load-bearing):
+  1. acquire single-instance lock
+  2. QApplication created
+  3. Stylesheet applied
+  4. ensure_dirs() — create writable data directories
+  5. run_pending_restore() — execute any deferred restore BEFORE DB connections
+  6. AppController.__init__() → run_migrations() → health checks
+  7. controller.start() → event loop
 """
 import sys
 import os
@@ -33,6 +42,27 @@ def main() -> int:
 
         # Load QSS
         _apply_stylesheet(app)
+
+        # Phase 0: run any pending deferred restore BEFORE any DB connections.
+        # This must happen before AppController (which opens the DB via run_migrations).
+        from src.core.paths import ensure_dirs
+        from src.core.restore import RestoreError, run_pending_restore
+        ensure_dirs()
+        try:
+            outcome = run_pending_restore()
+            if outcome.status == 'warning':
+                QMessageBox.warning(
+                    None,
+                    'FloatDesk Remind — 還原通知',
+                    outcome.message,
+                )
+        except RestoreError as exc:
+            QMessageBox.critical(
+                None,
+                'FloatDesk Remind — 還原失敗',
+                f'{exc}\n\n請依上述說明手動恢復資料庫後重新啟動程式。',
+            )
+            return 1
 
         from src.app import AppController
         controller = AppController()

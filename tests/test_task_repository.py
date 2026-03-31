@@ -47,13 +47,103 @@ def test_update(task_repo):
     assert fetched.priority == 'high'
 
 
-def test_soft_delete(task_repo):
+def test_soft_delete_sets_status_and_deleted_at(task_repo):
     task = _make_task(title='To delete')
     task_repo.create(task)
     task_repo.soft_delete(task.id)
 
-    all_active = task_repo.get_all_active()
-    assert not any(t.id == task.id for t in all_active)
+    fetched = task_repo.get_by_id(task.id)
+    assert fetched is not None
+    assert fetched.status == 'deleted'
+    assert fetched.deleted_at is not None
+
+
+def test_soft_delete_hides_from_get_all_non_deleted(task_repo):
+    task = _make_task(title='To delete')
+    task_repo.create(task)
+    task_repo.soft_delete(task.id)
+
+    all_tasks = task_repo.get_all_non_deleted()
+    assert not any(t.id == task.id for t in all_tasks)
+
+
+def test_get_deleted_returns_soft_deleted(task_repo):
+    task = _make_task(title='Deleted task')
+    task_repo.create(task)
+    task_repo.soft_delete(task.id)
+
+    deleted = task_repo.get_deleted()
+    assert any(t.id == task.id for t in deleted)
+
+
+def test_get_deleted_newest_first(task_repo):
+    t1 = _make_task(title='First deleted')
+    t2 = _make_task(title='Second deleted')
+    task_repo.create(t1)
+    task_repo.create(t2)
+    task_repo.soft_delete(t1.id)
+    task_repo.soft_delete(t2.id)
+
+    deleted = task_repo.get_deleted()
+    ids = [t.id for t in deleted]
+    assert ids.index(t2.id) < ids.index(t1.id)
+
+
+def test_restore_from_trash_sets_pending(task_repo):
+    task = _make_task(title='Restore me')
+    task_repo.create(task)
+    task_repo.soft_delete(task.id)
+    task_repo.restore_from_trash(task.id)
+
+    fetched = task_repo.get_by_id(task.id)
+    assert fetched.status == 'pending'
+    assert fetched.deleted_at is None
+
+
+def test_restore_from_trash_does_not_restore_done_task(task_repo):
+    task = _make_task(title='Done task', status='done')
+    task_repo.create(task)
+    task_repo.restore_from_trash(task.id)  # guard: WHERE status='deleted', should be no-op
+
+    fetched = task_repo.get_by_id(task.id)
+    assert fetched.status == 'done'  # unchanged
+
+
+def test_permanently_delete_removes_row(task_repo):
+    task = _make_task(title='Permanent')
+    task_repo.create(task)
+    task_repo.soft_delete(task.id)
+    task_repo.permanently_delete(task.id)
+
+    assert task_repo.get_by_id(task.id) is None
+
+
+def test_bulk_soft_delete_children_marks_all(task_repo):
+    parent = _make_task(title='Parent')
+    task_repo.create(parent)
+    children = [_make_task(parent_id=parent.id) for _ in range(3)]
+    for c in children:
+        task_repo.create(c)
+
+    task_repo.bulk_soft_delete_children(parent.id)
+
+    for c in children:
+        fetched = task_repo.get_by_id(c.id)
+        assert fetched.status == 'deleted'
+
+
+def test_get_by_due_dates_includes_done_excludes_deleted(task_repo):
+    today = date.today().isoformat()
+    done_task = _make_task(title='Done task', due_date=today, status='done')
+    deleted_task = _make_task(title='Deleted task', due_date=today)
+    task_repo.create(done_task)
+    task_repo.create(deleted_task)
+    task_repo.soft_delete(deleted_task.id)
+
+    results = task_repo.get_by_due_dates([today])
+    ids = {t.id for t in results}
+    assert done_task.id in ids        # done tasks are included
+    assert deleted_task.id not in ids  # deleted tasks are excluded
 
 
 def test_hard_delete(task_repo):

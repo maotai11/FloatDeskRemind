@@ -142,9 +142,10 @@ def test_scenario_e_delete_cascade(task_service, task_repo):
 
     task_service.delete_task(parent.id, cascade=True)
 
-    assert task_repo.get_by_id(parent.id) is None
-    assert task_repo.get_by_id(child1.id) is None
-    assert task_repo.get_by_id(child2.id) is None
+    # Soft delete: rows still exist but status='deleted'
+    assert task_repo.get_by_id(parent.id).status == 'deleted'
+    assert task_repo.get_by_id(child1.id).status == 'deleted'
+    assert task_repo.get_by_id(child2.id).status == 'deleted'
 
 
 def test_scenario_e_delete_unparent(task_service, task_repo):
@@ -156,10 +157,65 @@ def test_scenario_e_delete_unparent(task_service, task_repo):
 
     task_service.delete_task(parent.id, cascade=False)
 
-    assert task_repo.get_by_id(parent.id) is None
+    # Parent soft-deleted; child unparented and still pending
+    assert task_repo.get_by_id(parent.id).status == 'deleted'
     fetched_child = task_repo.get_by_id(child.id)
     assert fetched_child is not None
     assert fetched_child.parent_id is None
+    assert fetched_child.status == 'pending'
+
+
+# ------------------------------------------------------------------
+# Recycle bin
+# ------------------------------------------------------------------
+def test_delete_task_soft_deletes_not_hard(task_service, task_repo):
+    task = _make_task(title='Soft deleted')
+    task_repo.create(task)
+    task_service.delete_task(task.id, cascade=False)
+
+    fetched = task_repo.get_by_id(task.id)
+    assert fetched is not None
+    assert fetched.status == 'deleted'
+
+
+def test_delete_cascade_soft_deletes_children(task_service, task_repo):
+    parent = _make_task(title='Parent')
+    task_repo.create(parent)
+    child = _make_task(parent_id=parent.id)
+    task_repo.create(child)
+
+    task_service.delete_task(parent.id, cascade=True)
+
+    assert task_repo.get_by_id(child.id).status == 'deleted'
+
+
+def test_get_recycle_bin(task_service, task_repo):
+    task = _make_task(title='In trash')
+    task_repo.create(task)
+    task_service.delete_task(task.id, cascade=False)
+
+    bin_tasks = task_service.get_recycle_bin()
+    assert any(t.id == task.id for t in bin_tasks)
+
+
+def test_restore_from_trash_via_service(task_service, task_repo):
+    task = _make_task(title='Restore me')
+    task_repo.create(task)
+    task_service.delete_task(task.id, cascade=False)
+    task_service.restore_from_trash(task.id)
+
+    fetched = task_repo.get_by_id(task.id)
+    assert fetched.status == 'pending'
+    assert fetched.deleted_at is None
+
+
+def test_permanently_delete_via_service(task_service, task_repo):
+    task = _make_task(title='Permanent')
+    task_repo.create(task)
+    task_service.delete_task(task.id, cascade=False)
+    task_service.permanently_delete(task.id)
+
+    assert task_repo.get_by_id(task.id) is None
 
 
 def test_get_delete_preview(task_service, task_repo):
