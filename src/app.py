@@ -4,12 +4,12 @@ Owns repositories, services, and windows.
 Signal routing: UI events → Service → Repository → DB → refresh signals → UI
 """
 from __future__ import annotations
-from datetime import date, datetime, timedelta
+from datetime import date
 from pathlib import Path
 from typing import List, Optional
 
 from PySide6.QtCore import QObject, Signal, QTimer
-from PySide6.QtWidgets import QApplication, QMessageBox, QSystemTrayIcon
+from PySide6.QtWidgets import QApplication, QMessageBox
 
 from src.core.config import AppConfig
 from src.core.logger import logger
@@ -83,14 +83,6 @@ class AppController(QObject):
         self._geo_save_timer.setInterval(800)
         self._geo_save_timer.timeout.connect(self._save_config)
 
-        # Reminder timer: checks due tasks every minute
-        self._remind_session_start: str = ''   # set in start(); ISO 'YYYY-MM-DDTHH:MM'
-        self._notified_ids: set = set()        # confirmed this session → never re-fires
-        self._snoozed: dict = {}               # {task_id: snooze_until ISO str}
-        self._remind_timer = QTimer()
-        self._remind_timer.setInterval(60_000)
-        self._remind_timer.timeout.connect(self._check_reminders)
-
     def start(self) -> None:
         """Initialize and show the app."""
         self._apply_font_size()
@@ -99,11 +91,6 @@ class AppController(QObject):
         self._setup_console_window()
         self._refresh_all()
         self._float_window.show()
-
-        # Start reminder timer; record session start so pre-existing overdue
-        # tasks (before this launch) are not spuriously re-notified.
-        self._remind_session_start = datetime.now().strftime('%Y-%m-%dT%H:%M')
-        self._remind_timer.start()
 
         # Reminder scheduler: scan task_reminders every 30 s.
         # scan_now() fires an immediate scan so reminders due at startup are not
@@ -191,11 +178,12 @@ class AppController(QObject):
     def _refresh_all(self) -> None:
         tasks = self._task_service.get_all_non_deleted()
         today_str = date.today().isoformat()
-        float_dates = set(next_n_days(self._config.display_days))
+
+        # Float window: pass ALL pending tasks with a due_date.
+        # The window itself groups them into overdue / today / tomorrow / future.
         float_tasks = [
             t for t in tasks
             if t.status == 'pending' and t.due_date
-            and (t.due_date < today_str or t.due_date in float_dates)
         ]
 
         if self._float_window:
@@ -207,59 +195,48 @@ class AppController(QObject):
     # Reminder
     # ------------------------------------------------------------------
 
-    def _show_tray_notification(self, title: str, message: str) -> None:
-        """Show a tray balloon notification for a fired reminder.
+    def _show_tray_notification(self, task_id: str, title: str, message: str) -> None:
+        """Show a ReminderDialog for a fired reminder.
 
-        Silently skipped if the tray icon is not available or not visible
-        (e.g. running headless in tests).
+        The dialog stays on screen until the user confirms (closes) or snoozes.
+        Snooze reschedules the reminder and resets is_fired so it fires again.
         """
-        if self._tray and self._tray.isVisible():
-            self._tray.showMessage(
-                title,
-                message,
-                QSystemTrayIcon.MessageIcon.Information,
-                5000,   # ms — 5 seconds
-            )
-            logger.info('[app] Tray notification shown: "%s"', title)
-        else:
-            logger.debug('[app] Tray not visible; skipping notification for "%s"', title)
-
-    def _check_reminders(self) -> None:
-        """Show reminder dialogs for tasks that became due since session start."""
-        if not self._tray or not self._remind_session_start:
+        task = self._task_service.get_task(task_id)
+        if not task:
+            logger.warning('[app] Reminder fired for non-existent task: %s', task_id)
             return
-        now_str = datetime.now().strftime('%Y-%m-%dT%H:%M')
-        tasks = self._task_repo.get_pending_due_in_range(
-            self._remind_session_start, now_str
-        )
-        for task in tasks:
-            # Still in snooze window — skip
-            snooze_until = self._snoozed.get(task.id)
-            if snooze_until:
-                if now_str < snooze_until:
-                    continue
-                del self._snoozed[task.id]   # snooze expired → fall through
-            elif task.id in self._notified_ids:
-                continue  # already confirmed this session
-            self._show_reminder_dialog(task)
 
-    def _show_reminder_dialog(self, task: Task) -> None:
         from src.ui.dialogs.reminder_dialog import ReminderDialog
-        time_str = task.due_time[:5] if task.due_time else ''
-        logger.info(f'Reminder: "{task.title}" {task.due_date} {time_str}')
         dlg = ReminderDialog(task)
         dlg.confirmed.connect(self._on_reminder_confirmed)
         dlg.snoozed.connect(self._on_reminder_snoozed)
-        dlg.show()
+        dlg.exec()
+        logger.info('[app] Reminder dialog shown: "%s"', title)
 
     def _on_reminder_confirmed(self, task_id: str) -> None:
-        self._notified_ids.add(task_id)
-        self._snoozed.pop(task_id, None)
+        """User confirmed the reminder — nothing else to do, reminder is already marked fired."""
+        logger.info('[app] Reminder confirmed: task=%s', task_id)
 
     def _on_reminder_snoozed(self, task_id: str, minutes: int) -> None:
-        until = datetime.now() + timedelta(minutes=minutes)
-        self._snoozed[task_id] = until.strftime('%Y-%m-%dT%H:%M')
-        logger.info(f'Reminder snoozed {minutes}m: task={task_id}')
+        """User snoozed — reschedule the reminder by adding `minutes` to now and resetting is_fired."""
+        from datetime import datetime, timedelta
+        new_remind_at = (datetime.now() + timedelta(minutes=minutes)).strftime('%Y-%m-%dT%H:%M:%S')
+        try:
+            # Find the fired reminder for this task and reschedule it
+            existing = self._reminder_repo.get_by_task_id(task_id)
+            if existing:
+                with self._reminder_repo._conn() as conn:
+                    conn.execute(
+                        'UPDATE task_reminders SET remind_at = ?, is_fired = 0 WHERE id = ?',
+                        (new_remind_at, existing.id),
+                    )
+                    conn.commit()
+                logger.info(
+                    '[app] Reminder snoozed: task=%s, new_time=%s, id=%s',
+                    task_id, new_remind_at, existing.id[:8],
+                )
+        except Exception as exc:
+            logger.error('[app] Failed to snooze reminder: %s', exc)
 
     # ------------------------------------------------------------------
     # Backup & Restore

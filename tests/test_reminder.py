@@ -245,12 +245,14 @@ class TestReminderScheduler:
 
         scheduler = ReminderScheduler(mock_repo)
         received = []
-        scheduler.notification_requested.connect(lambda t, m: received.append((t, m)))
+        scheduler.notification_requested.connect(
+            lambda tid, title, msg: received.append((tid, title, msg))
+        )
 
         scheduler.scan_now()
 
         assert len(received) == 1
-        assert received[0][0] == 'Buy milk'
+        assert received[0][1] == 'Buy milk'  # title is 2nd arg now
 
     def test_scan_calls_mark_fired_before_emit(self, qapp):
         """mark_fired must be called before notification_requested is emitted."""
@@ -263,7 +265,7 @@ class TestReminderScheduler:
 
         scheduler = ReminderScheduler(mock_repo)
         scheduler.notification_requested.connect(
-            lambda t, m: call_order.append('signal')
+            lambda tid, title, msg: call_order.append('signal')
         )
 
         scheduler.scan_now()
@@ -276,7 +278,9 @@ class TestReminderScheduler:
 
         scheduler = ReminderScheduler(mock_repo)
         received = []
-        scheduler.notification_requested.connect(lambda t, m: received.append((t, m)))
+        scheduler.notification_requested.connect(
+            lambda tid, title, msg: received.append((tid, title, msg))
+        )
 
         scheduler.scan_now()
 
@@ -298,7 +302,9 @@ class TestReminderScheduler:
 
         received = []
         scheduler = ReminderScheduler(mock_repo)
-        scheduler.notification_requested.connect(lambda t, m: received.append(t))
+        scheduler.notification_requested.connect(
+            lambda tid, title, msg: received.append(title)
+        )
 
         scheduler.scan_now()
 

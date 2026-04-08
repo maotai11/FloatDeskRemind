@@ -15,18 +15,12 @@ from src.services.sort_service import sort_tasks
 from src.ui.components.task_item_widget import TaskItemWidget
 
 
-def _day_label(d_str: str, today: date) -> str:
-    """Return 今天 / 明天 / M月D日 based on delta from today."""
+def _date_delta(d_str: str, today: date) -> int:
+    """Return (date - today).days; returns 999 on parse error."""
     try:
-        dt = date.fromisoformat(d_str)
+        return (date.fromisoformat(d_str) - today).days
     except ValueError:
-        return d_str
-    delta = (dt - today).days
-    if delta == 0:
-        return '今天'
-    if delta == 1:
-        return '明天'
-    return f'{dt.month}月{dt.day}日'
+        return 999
 
 
 class TaskListWidget(QWidget):
@@ -87,15 +81,19 @@ class TaskListWidget(QWidget):
                 self._content_layout.addWidget(item)
                 self._items[task.id] = item
 
-        # --- 今天 / 明天 / 未來日期 ---
+        # --- 今天 / 明天 / 未來 ---
         dates = sorted(k for k in tasks_by_date if k != '__overdue__')
-        for d in dates:
-            tasks = tasks_by_date.get(d, [])
-            sorted_tasks = sort_tasks(tasks)
-            is_today = (d == today_str)
-            day_lbl = _day_label(d, today)
 
-            header = QLabel(day_lbl)
+        # Separate dates: today (0), tomorrow (1), future (>1)
+        today_dates    = [d for d in dates if _date_delta(d, today) == 0]
+        tomorrow_dates = [d for d in dates if _date_delta(d, today) == 1]
+        future_dates   = [d for d in dates if _date_delta(d, today) > 1]
+
+        _WEEKDAYS = ('一', '二', '三', '四', '五', '六', '日')
+
+        def _add_section(label_text: str, date_keys: list, is_today: bool = False,
+                         show_date_headers: bool = False) -> None:
+            header = QLabel(label_text)
             header.setStyleSheet(
                 f'color: {"#4F46E5" if is_today else "#64748B"};'
                 f'font-weight: {"700" if is_today else "500"};'
@@ -103,21 +101,50 @@ class TaskListWidget(QWidget):
             )
             self._content_layout.addWidget(header)
 
-            if not sorted_tasks:
-                empty = QLabel('  無待辦事項')
-                empty.setStyleSheet(
-                    'color: #CBD5E1; font-size: 12px; '
-                    'padding: 4px 8px 10px 8px; background: transparent;'
-                )
-                self._content_layout.addWidget(empty)
+            if show_date_headers:
+                # Future section: show a date header per day, sorted chronologically
+                for d in sorted(date_keys):
+                    tasks_for_day = tasks_by_date.get(d, [])
+                    if not tasks_for_day:
+                        continue
+                    try:
+                        dt = date.fromisoformat(d)
+                        day_label = f'{dt.month}/{dt.day}（{_WEEKDAYS[dt.weekday()]}）'
+                    except ValueError:
+                        day_label = d
+
+                    day_hdr = QLabel(f'  {day_label}')
+                    day_hdr.setStyleSheet(
+                        'color: #94A3B8; font-weight: 500; font-size: 10px; '
+                        'padding: 6px 4px 2px 4px; background: transparent;'
+                    )
+                    self._content_layout.addWidget(day_hdr)
+
+                    for task in sort_tasks(tasks_for_day):
+                        item = TaskItemWidget(task, reference_date_str=today_str)
+                        item.completed.connect(self.task_completed)
+                        item.edit_requested.connect(self.task_edit_requested)
+                        item.delete_requested.connect(self.task_delete_requested)
+                        self._content_layout.addWidget(item)
+                        self._items[task.id] = item
             else:
-                for task in sorted_tasks:
+                combined = []
+                for d in date_keys:
+                    combined.extend(tasks_by_date.get(d, []))
+                for task in sort_tasks(combined):
                     item = TaskItemWidget(task, reference_date_str=today_str)
                     item.completed.connect(self.task_completed)
                     item.edit_requested.connect(self.task_edit_requested)
                     item.delete_requested.connect(self.task_delete_requested)
                     self._content_layout.addWidget(item)
                     self._items[task.id] = item
+
+        if today_dates:
+            _add_section('今天', today_dates, is_today=True)
+        if tomorrow_dates:
+            _add_section('明天', tomorrow_dates)
+        if future_dates:
+            _add_section('未來', future_dates, show_date_headers=True)
 
         self._content_layout.addStretch()
 

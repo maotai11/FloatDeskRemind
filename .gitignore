@@ -5,24 +5,46 @@ __pycache__/
 *.pyd
 *.egg-info/
 .eggs/
+
+# PyInstaller output (large binaries)
 dist/
 build/
 *.spec.bak
-
-# PyInstaller output
-dist/
-build/
 
 # Virtual environments
 venv/
 .venv/
 env/
 
+# Environment & secrets
+.env
+.env.*
+*.env
+!*.env.example
+
+# Credentials, API keys, tokens
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+
+# App data (dev artifacts)
+data/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Logs & cache
+logs/
+*.log
+.cache/
+
 # Testing
 .pytest_cache/
 .coverage
 htmlcov/
-*.log
 
 # IDE / Editor
 .vscode/
@@ -33,6 +55,7 @@ htmlcov/
 # OS
 .DS_Store
 Thumbs.db
+desktop.ini
 
 # AI tooling
 .claude/
@@ -40,7 +63,12 @@ Thumbs.db
 .aider*
 .cursor/
 .continue/
+.qwen/
 
-# App data (dev artifacts)
-src/__pycache__/
-tests/__pycache__/
+# Portable mode flag (local-only)
+portable.flag
+
+# Temporary files
+*.tmp
+*.bak
+*~

@@ -6,7 +6,7 @@ Right-click context menu for edit/delete.
 from __future__ import annotations
 
 from PySide6.QtWidgets import (
-    QWidget, QHBoxLayout, QCheckBox, QLabel, QSizePolicy, QMenu
+    QWidget, QHBoxLayout, QVBoxLayout, QCheckBox, QLabel, QSizePolicy, QMenu
 )
 from PySide6.QtCore import Signal, Qt
 from PySide6.QtGui import QAction
@@ -68,7 +68,7 @@ class TaskItemWidget(QWidget):
         layout.addWidget(self._check)
         layout.addSpacing(6)
 
-        # Title
+        # Title + description vertical stack
         is_overdue = (
             self._task.due_date and self._ref_date
             and self._task.due_date < self._ref_date
@@ -76,18 +76,46 @@ class TaskItemWidget(QWidget):
         )
         is_done = self._task.status == 'done'
 
+        text_col = QWidget()
+        text_col.setStyleSheet('background: transparent;')
+        text_col.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        text_layout = QVBoxLayout(text_col)
+        text_layout.setContentsMargins(0, 2, 0, 2)
+        text_layout.setSpacing(1)
+
         self._label = QLabel(self._task.title)
-        self._label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         self._label.setWordWrap(False)
 
         if is_done:
-            self._label.setStyleSheet('color: #CBD5E1; text-decoration: line-through; font-size: 13px;')
+            self._label.setStyleSheet('color: #CBD5E1; text-decoration: line-through; font-size: 13px; background: transparent;')
         elif is_overdue:
-            self._label.setStyleSheet(f'color: {TEXT_OVERDUE}; font-weight: 600; font-size: 13px;')
+            self._label.setStyleSheet(f'color: {TEXT_OVERDUE}; font-weight: 600; font-size: 13px; background: transparent;')
         else:
-            self._label.setStyleSheet('color: #1E293B; font-size: 13px;')
+            self._label.setStyleSheet('color: #1E293B; font-size: 13px; background: transparent;')
 
-        layout.addWidget(self._label)
+        text_layout.addWidget(self._label)
+
+        # Description / 備註 preview (up to 2 lines, truncated)
+        desc = (self._task.description or '').strip()
+        if desc:
+            lines = desc.split('\n')
+            preview = ''
+            for line in lines:
+                line = line.strip()
+                if line:
+                    preview = line
+                    break
+            if len(preview) > 50:
+                preview = preview[:50] + '…'
+            desc_lbl = QLabel(f'備註：{preview}')
+            desc_lbl.setStyleSheet(
+                'color: #94A3B8; font-size: 10px; background: transparent; '
+                'padding-left: 2px; line-height: 14px;'
+            )
+            desc_lbl.setWordWrap(True)
+            text_layout.addWidget(desc_lbl)
+
+        layout.addWidget(text_col)
 
         # Time badge
         if self._task.due_time:

@@ -53,6 +53,74 @@ class TaskService:
     # ------------------------------------------------------------------
     # Validation
     # ------------------------------------------------------------------
+
+    _VALID_STATUSES = frozenset({'pending', 'done', 'archived', 'deleted'})
+    _VALID_PRIORITIES = frozenset({'high', 'medium', 'low', 'none'})
+    _VALID_RECURRENCE = frozenset({'daily', 'weekly', 'monthly'})
+
+    def _validate_task(self, task: Task) -> None:
+        """Centralized input validation for Task entities.
+
+        Raises ValueError with a clear message if any constraint is violated.
+        Call this before any create or update operation.
+        """
+        # Title: must be non-empty after stripping
+        if not task.title or not task.title.strip():
+            raise ValueError('任務標題不能為空')
+
+        # Title length guard (prevent abuse)
+        if len(task.title) > 500:
+            raise ValueError('任務標題過長（最多 500 字）')
+
+        # Description length guard
+        if task.description and len(task.description) > 10_000:
+            raise ValueError('任務說明過長（最多 10000 字）')
+
+        # Status: must be a valid enum value
+        if task.status not in self._VALID_STATUSES:
+            raise ValueError(
+                f'無效的狀態：{task.status!r}。允許值：{", ".join(sorted(self._VALID_STATUSES))}'
+            )
+
+        # Priority: must be a valid value
+        if task.priority not in self._VALID_PRIORITIES:
+            raise ValueError(
+                f'無效的優先級：{task.priority!r}。允許值：{", ".join(sorted(self._VALID_PRIORITIES))}'
+            )
+
+        # Date format validation (if provided)
+        if task.due_date:
+            try:
+                date.fromisoformat(task.due_date)
+            except ValueError:
+                raise ValueError(f'無效的期限日期格式：{task.due_date!r}（應為 YYYY-MM-DD）')
+
+        if task.start_date:
+            try:
+                date.fromisoformat(task.start_date)
+            except ValueError:
+                raise ValueError(f'無效的開始日期格式：{task.start_date!r}（應為 YYYY-MM-DD）')
+
+        # Time format validation (if provided)
+        if task.due_time:
+            stripped = task.due_time.strip()
+            if stripped and len(stripped) < 5:
+                raise ValueError(f'無效的期限時間格式：{task.due_time!r}（應為 HH:MM）')
+
+        # Recurrence rule whitelist
+        if task.is_recurring and task.recurrence_rule:
+            if task.recurrence_rule not in self._VALID_RECURRENCE:
+                raise ValueError(
+                    f'無效的循環規則：{task.recurrence_rule!r}。允許值：{", ".join(sorted(self._VALID_RECURRENCE))}'
+                )
+
+        # Estimated minutes: must be positive if set
+        if task.estimated_minutes is not None and task.estimated_minutes <= 0:
+            raise ValueError('預估分鐘數必須為正整數')
+
+        # Parent hierarchy: no grandchild
+        self._validate_no_grandchild(task.parent_id)
+
     def _validate_no_grandchild(self, parent_id: Optional[str]) -> None:
         """Raise ValueError if parent_id would create a grandchild."""
         if parent_id is None:
@@ -65,12 +133,11 @@ class TaskService:
     # CRUD
     # ------------------------------------------------------------------
     def create_task(self, task: Task) -> Task:
-        self._validate_no_grandchild(task.parent_id)
+        self._validate_task(task)
         return self._repo.create(task)
 
     def update_task(self, task: Task) -> Task:
-        if task.parent_id:
-            self._validate_no_grandchild(task.parent_id)
+        self._validate_task(task)
         return self._repo.update(task)
 
     def get_task(self, task_id: str) -> Optional[Task]:

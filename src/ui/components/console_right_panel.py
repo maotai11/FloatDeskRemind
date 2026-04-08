@@ -275,20 +275,50 @@ class RightPanel(QWidget, TimePickerMixin):
 
         # ── Action buttons ────────────────────────────────────────────
         btn_bar = QWidget()
-        btn_bar.setStyleSheet('background-color: #F5F5F5; border-top: 1px solid #E0E0E0;')
+        btn_bar.setStyleSheet(
+            'background-color: #F5F5F5; border-top: 1px solid #E0E0E0; '
+            'padding: 0;'
+        )
         btn_layout = QHBoxLayout(btn_bar)
-        btn_layout.setContentsMargins(12, 8, 12, 8)
-        btn_layout.setSpacing(8)
+        btn_layout.setContentsMargins(12, 10, 12, 10)
+        btn_layout.setSpacing(10)
 
         self._save_btn = QPushButton('儲存')
-        self._save_btn.setFixedWidth(80)
+        self._save_btn.setFixedHeight(36)
+        self._save_btn.setMinimumWidth(90)
+        self._save_btn.setStyleSheet(
+            'QPushButton {'
+            '  background-color: #4F46E5;'
+            '  color: #FFFFFF;'
+            '  border: none;'
+            '  border-radius: 8px;'
+            '  padding: 0 20px;'
+            '  font-size: 13px;'
+            '  font-weight: 700;'
+            '}'
+            'QPushButton:hover { background-color: #3730A3; }'
+            'QPushButton:pressed { background-color: #312E81; }'
+            'QPushButton:disabled { background-color: #CBD5E1; color: #F8FAFC; }'
+        )
         self._save_btn.clicked.connect(self._on_save)
         btn_layout.addStretch()
         btn_layout.addWidget(self._save_btn)
 
         cancel_btn = QPushButton('取消')
-        cancel_btn.setProperty('class', 'secondary')
-        cancel_btn.setFixedWidth(80)
+        cancel_btn.setFixedHeight(36)
+        cancel_btn.setMinimumWidth(90)
+        cancel_btn.setStyleSheet(
+            'QPushButton {'
+            '  background-color: transparent;'
+            '  color: #4F46E5;'
+            '  border: 1.5px solid #4F46E5;'
+            '  border-radius: 8px;'
+            '  padding: 0 20px;'
+            '  font-size: 13px;'
+            '  font-weight: 600;'
+            '}'
+            'QPushButton:hover { background-color: #EEF2FF; }'
+        )
         cancel_btn.clicked.connect(self.cancel_requested)
         btn_layout.addWidget(cancel_btn)
 

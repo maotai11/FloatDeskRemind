@@ -40,7 +40,7 @@ class ReminderScheduler(QObject):
 
     INTERVAL_MS: int = 30_000
 
-    notification_requested = Signal(str, str)  # (task_title, message)
+    notification_requested = Signal(str, str, str)  # (task_id, task_title, message)
 
     def __init__(self, repo: 'ReminderRepository', parent: QObject = None) -> None:
         super().__init__(parent)
@@ -102,7 +102,7 @@ class ReminderScheduler(QObject):
                         reminder.reminder_id[:8],
                         reminder.task_title,
                     )
-                    self.notification_requested.emit(reminder.task_title, message)
+                    self.notification_requested.emit(reminder.task_id, reminder.task_title, message)
 
                 except Exception as exc:  # noqa: BLE001
                     logger.warning(
